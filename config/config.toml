@@ -1,0 +1,30 @@
+#debug or release
+run_mode = "debug"
+
+[app]
+jwt_secret = "20144481"
+
+# 定义 HTTP 监听端口
+[http]
+port = "8008"
+
+# 存储配置,使用Postgres
+[storage]
+user = "admin"
+password = "admin"
+host = "localhost"
+port = 5432
+dbname = "postgres"
+
+# 日志设置
+[logger]
+file_path= "/Users/yan/GolandProjects/log/hello-world-web/log/log.log"
+# 使用zerolog包配置，0-debug,1-info,3-warn,4-error,5-fatal,6-panic,7-nolevel,8-disable, -1-> trace
+level= 0
+
+# mail配置
+[mail]
+host="smtp.gmail.com"
+port=465
+email="unrotten7@gmail.com"
+password="******"
