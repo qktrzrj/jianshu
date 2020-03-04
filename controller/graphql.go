@@ -22,26 +22,8 @@ type RequestOptions struct {
 }
 
 func Register(e *gin.Engine) {
-	queryType = graphql.NewObject(graphql.ObjectConfig{Name: "Query", Fields: graphql.Fields{
-		"test": {
-			Name: "test",
-			Type: graphql.String,
-			Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-				return "test", nil
-			},
-			Description: "test",
-		},
-	}})
-	mutationType = graphql.NewObject(graphql.ObjectConfig{Name: "Mutation", Fields: graphql.Fields{
-		"test": {
-			Name: "test",
-			Type: graphql.String,
-			Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-				return "test", nil
-			},
-			Description: "test",
-		},
-	}})
+	queryType = graphql.NewObject(graphql.ObjectConfig{Name: "Query", Fields: graphql.Fields{}})
+	mutationType = graphql.NewObject(graphql.ObjectConfig{Name: "Mutation", Fields: graphql.Fields{}})
 	subscriptType = graphql.NewObject(graphql.ObjectConfig{Name: "Subscription", Fields: graphql.Fields{
 		"test": {
 			Name: "test",
@@ -52,6 +34,13 @@ func Register(e *gin.Engine) {
 			Description: "test",
 		},
 	}})
+	registerUserType()
+	registerUserFollowType()
+	registerArticleType()
+	registerCommentType()
+	registerCommentReplyType()
+	registerTagType()
+	registerZanType()
 	schemaConfig := graphql.SchemaConfig{
 		Query:        queryType,
 		Mutation:     mutationType,
@@ -66,8 +55,8 @@ func Register(e *gin.Engine) {
 	h := handler.New(&handler.Config{
 		Schema:     &schema,
 		Pretty:     true,
-		GraphiQL:   true,
-		Playground: false,
+		GraphiQL:   false,
+		Playground: true,
 	})
 	router := func(ctx *gin.Context) {
 		h.ContextHandler(context.Background(), ctx.Writer, ctx.Request)
