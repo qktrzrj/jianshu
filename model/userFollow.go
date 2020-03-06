@@ -3,7 +3,6 @@ package model
 import (
 	"context"
 	"errors"
-	"github.com/unrotten/builder"
 	"github.com/unrotten/sqlex"
 	"time"
 )
@@ -22,7 +21,7 @@ func InsertUserFollow(ctx context.Context, uid, fuid int64) error {
 	if err != nil {
 		return err
 	}
-	if result := insertOne(ctx, "user_follow", cv{"id": int64(id), "uid": uid, "fuid": fuid}); !result.success {
+	if result := insertOne(ctx, UserFollow{}, "user_follow", cv{"id": int64(id), "uid": uid, "fuid": fuid}); !result.success {
 		return errors.New("插入用户关注表失败")
 	}
 	return nil
@@ -36,33 +35,19 @@ func RemoveUserFollow(ctx context.Context, uid, fuid int64) error {
 }
 
 // 获取用户关注列表
-func GetUserFollowList(ctx context.Context, fuid int64) ([]int64, error) {
-	result := selectList(ctx, "user_follow", where{sqlex.Eq{"fuid": fuid}}, "uid")
+func GetUserFollowList(ctx context.Context, fuid int64) ([]UserFollow, error) {
+	result := selectList(ctx, int64(0), "user_follow", where{sqlex.Eq{"fuid": fuid}}, "uid")
 	if !result.success {
 		return nil, errors.New("获取用户关注列表失败")
 	}
-	b, _ := builder.Get(result.b, "list")
-	list := b.([]interface{})
-	userList := make([]int64, 0, len(list))
-	for _, item := range list {
-		uid, _ := builder.Get(item.(builder.Builder), "uid")
-		userList = append(userList, uid.(int64))
-	}
-	return userList, nil
+	return result.value.([]UserFollow), nil
 }
 
 // 获取用户粉丝列表
-func GetFollowUserList(ctx context.Context, uid int64) ([]int64, error) {
-	result := selectList(ctx, "user_follow", where{sqlex.Eq{"uid": uid}}, "fuid")
+func GetFollowUserList(ctx context.Context, uid int64) ([]UserFollow, error) {
+	result := selectList(ctx, int64(0), "user_follow", where{sqlex.Eq{"uid": uid}}, "fuid")
 	if !result.success {
 		return nil, errors.New("获取用户关注列表失败")
 	}
-	b, _ := builder.Get(result.b, "list")
-	list := b.([]interface{})
-	userList := make([]int64, 0, len(list))
-	for _, item := range list {
-		uid, _ := builder.Get(item.(builder.Builder), "fuid")
-		userList = append(userList, uid.(int64))
-	}
-	return userList, nil
+	return result.value.([]UserFollow), nil
 }

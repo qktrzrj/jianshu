@@ -3,7 +3,6 @@ package model
 import (
 	"context"
 	"errors"
-	"github.com/unrotten/builder"
 	"time"
 )
 
@@ -36,27 +35,19 @@ type User struct {
 }
 
 func GetUsers(ctx context.Context, where where) ([]User, error) {
-	result := selectList(ctx, `"user"`, where)
+	result := selectList(ctx, User{}, `"user"`, where)
 	if !result.success {
 		return nil, errors.New("获取用户列表失败")
 	}
-	list, ok := builder.Get(result.b, "list")
-	if !ok {
-		return nil, errors.New("获取用户列表失败")
-	}
-	users := make([]User, 0, len(list.([]interface{})))
-	for _, item := range list.([]interface{}) {
-		users = append(users, builder.GetStructLikeByTag(item.(builder.Builder), User{}, "db").(User))
-	}
-	return users, nil
+	return result.value.([]User), nil
 }
 
 func GetUser(ctx context.Context, where where) (User, error) {
-	result := selectOne(ctx, `"user"`, where)
+	result := selectOne(ctx, User{}, `"user"`, where)
 	if !result.success {
 		return User{}, errors.New("查询用户数据失败")
 	}
-	return builder.GetStructLikeByTag(result.b, User{}, "db").(User), nil
+	return result.value.(User), nil
 }
 
 func InsertUser(ctx context.Context, cv map[string]interface{}) (User, error) {
@@ -66,11 +57,11 @@ func InsertUser(ctx context.Context, cv map[string]interface{}) (User, error) {
 	}
 
 	cv["id"] = int64(id)
-	result := insertOne(ctx, `"user"`, cv)
+	result := insertOne(ctx, User{}, `"user"`, cv)
 	if !result.success {
 		return User{}, errors.New("插入用户数据失败")
 	}
-	return builder.GetStructLikeByTag(result.b, User{}, "db").(User), nil
+	return result.value.(User), nil
 }
 
 func UpdateUser(ctx context.Context, cv cv, where where) error {

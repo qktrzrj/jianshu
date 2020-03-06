@@ -3,7 +3,6 @@ package model
 import (
 	"context"
 	"errors"
-	"github.com/unrotten/builder"
 	"github.com/unrotten/sqlex"
 	"time"
 )
@@ -19,18 +18,18 @@ type ArticleEx struct {
 }
 
 func InsertArticleEx(ctx context.Context, cv cv) error {
-	if !insertOne(ctx, "article_ex", cv).success {
+	if !insertOne(ctx, ArticleEx{}, "article_ex", cv).success {
 		return errors.New("保存文章计数信息失败")
 	}
 	return nil
 }
 
 func GetArticleEx(ctx context.Context, aid int64) (ArticleEx, error) {
-	result := selectOne(ctx, "article_ex", where{sqlex.Eq{"aid": aid}})
+	result := selectOne(ctx, ArticleEx{}, "article_ex", where{sqlex.Eq{"aid": aid}})
 	if !result.success {
 		return ArticleEx{}, errors.New("获取文章计数信息失败")
 	}
-	return builder.GetStructLikeByTag(result.b, ArticleEx{}, "db").(ArticleEx), nil
+	return result.value.(ArticleEx), nil
 }
 
 func UpdateArticleEx(ctx context.Context, aid int64, add bool, columns ...string) error {

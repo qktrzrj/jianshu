@@ -3,7 +3,6 @@ package model
 import (
 	"context"
 	"errors"
-	"github.com/unrotten/builder"
 	"github.com/unrotten/sqlex"
 	"time"
 )
@@ -22,16 +21,11 @@ type Comment struct {
 }
 
 func GetComments(ctx context.Context, aid int64) ([]Comment, error) {
-	result := selectList(ctx, "comment", where{sqlex.Eq{"aid": aid}})
+	result := selectList(ctx, Comment{}, "comment", where{sqlex.Eq{"aid": aid}})
 	if !result.success {
 		return nil, errors.New("获取评论失败")
 	}
-	list, _ := builder.Get(result.b, "list")
-	comments := make([]Comment, 0, len(list.([]interface{})))
-	for _, item := range list.([]interface{}) {
-		comments = append(comments, builder.GetStructLikeByTag(item.(builder.Builder), Comment{}, "db").(Comment))
-	}
-	return comments, nil
+	return result.value.([]Comment), nil
 }
 
 func InsertComment(ctx context.Context, cv cv) (Comment, error) {
@@ -40,11 +34,11 @@ func InsertComment(ctx context.Context, cv cv) (Comment, error) {
 		return Comment{}, err
 	}
 	cv["id"] = int64(id)
-	result := insertOne(ctx, "comment", cv)
+	result := insertOne(ctx, Comment{}, "comment", cv)
 	if !result.success {
 		return Comment{}, errors.New("保存评论失败")
 	}
-	return builder.GetStructLikeByTag(result.b, Comment{}, "db").(Comment), nil
+	return result.value.(Comment), nil
 }
 
 func UpdateComment(ctx context.Context, id int64, cv cv, add bool, columns ...string) error {

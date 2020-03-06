@@ -3,7 +3,6 @@ package model
 import (
 	"context"
 	"errors"
-	"github.com/unrotten/builder"
 	"github.com/unrotten/sqlex"
 	"time"
 )
@@ -21,15 +20,15 @@ type UserCount struct {
 }
 
 func GetUserCount(ctx context.Context, uid int64) (UserCount, error) {
-	result := selectOne(ctx, "user_count", append(where{}, sqlex.Eq{"uid": uid}))
+	result := selectOne(ctx, UserCount{}, "user_count", append(where{}, sqlex.Eq{"uid": uid}))
 	if !result.success {
 		return UserCount{}, errors.New("查询用户计数失败")
 	}
-	return builder.GetStructLikeByTag(result.b, UserCount{}, "db").(UserCount), nil
+	return result.value.(UserCount), nil
 }
 
 func InsertUserCount(ctx context.Context, uid int64) error {
-	result := insertOne(ctx, "user_count", cv{"uid": uid})
+	result := insertOne(ctx, UserCount{}, "user_count", cv{"uid": uid})
 	if !result.success {
 		return errors.New("保存用户计数表失败")
 	}

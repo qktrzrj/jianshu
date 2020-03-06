@@ -3,7 +3,6 @@ package model
 import (
 	"context"
 	"errors"
-	"github.com/unrotten/builder"
 	"github.com/unrotten/sqlex"
 	"time"
 )
@@ -20,16 +19,11 @@ type CommentReply struct {
 }
 
 func GetReplies(ctx context.Context, cid int64) ([]CommentReply, error) {
-	result := selectList(ctx, "comment_reply", where{sqlex.Eq{"cid": cid}})
+	result := selectList(ctx, CommentReply{}, "comment_reply", where{sqlex.Eq{"cid": cid}})
 	if !result.success {
 		return nil, errors.New("获取评论回复失败")
 	}
-	list, _ := builder.Get(result.b, "list")
-	replies := make([]CommentReply, 0, len(list.([]interface{})))
-	for _, item := range list.([]interface{}) {
-		replies = append(replies, builder.GetStructLikeByTag(item.(builder.Builder), CommentReply{}, "db").(CommentReply))
-	}
-	return replies, nil
+	return result.value.([]CommentReply), nil
 }
 
 func InsertReply(ctx context.Context, cv cv) (CommentReply, error) {
@@ -38,11 +32,11 @@ func InsertReply(ctx context.Context, cv cv) (CommentReply, error) {
 		return CommentReply{}, err
 	}
 	cv["id"] = int64(id)
-	result := insertOne(ctx, "comment_reply", cv)
+	result := insertOne(ctx, CommentReply{}, "comment_reply", cv)
 	if !result.success {
 		return CommentReply{}, errors.New("保存回复失败")
 	}
-	return builder.GetStructLikeByTag(result.b, CommentReply{}, "db").(CommentReply), nil
+	return result.value.(CommentReply), nil
 }
 
 func RemoveReply(ctx context.Context, id int64) error {

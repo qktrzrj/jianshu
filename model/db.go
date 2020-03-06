@@ -31,7 +31,7 @@ type cv map[string]interface{}
 type where []sqlex.Sqlex
 
 type result struct {
-	b       builder.Builder
+	value   interface{}
 	success bool
 }
 
@@ -114,10 +114,10 @@ func get(query *sql.Rows, columnTypes []*sql.ColumnType, logger zerolog.Logger) 
 			build = builder.Set(build, col.Name(), val).(builder.Builder)
 		}
 	}
-	return result{success: true, b: build}
+	return result{success: true, value: build}
 }
 
-func selectList(ctx context.Context, table string, where where, columns ...string) result {
+func selectList(ctx context.Context, strct interface{}, table string, where where, columns ...string) result {
 	logger := ctx.Value("logger").(zerolog.Logger)
 	tx := ctx.Value("tx").(*sqlx.Tx)
 
@@ -141,18 +141,18 @@ func selectList(ctx context.Context, table string, where where, columns ...strin
 		logger.Error().Caller(1).Err(err).Send()
 		return result{success: false}
 	}
-	var resultSlice []interface{}
+	resultSlice := reflect.MakeSlice(reflect.SliceOf(reflect.TypeOf(strct)), 0, 16)
 	for query.Next() {
-		r := get(query, columnTypes, logger)
-		if !r.success {
-			return r
+		if result := get(query, columnTypes, logger); result.success {
+			resultSlice = reflect.Append(resultSlice, reflect.ValueOf(builder.GetStructLikeByTag(result.value, strct, "db")))
+		} else {
+			return result
 		}
-		resultSlice = append(resultSlice, r.b)
 	}
-	return result{success: true, b: builder.Set(builder.EmptyBuilder, "list", resultSlice).(builder.Builder)}
+	return result{success: true, value: resultSlice.Interface()}
 }
 
-func selectOne(ctx context.Context, table string, where where, columns ...string) result {
+func selectOne(ctx context.Context, strct interface{}, table string, where where, columns ...string) result {
 	logger := ctx.Value("logger").(zerolog.Logger)
 	tx := ctx.Value("tx").(*sqlx.Tx)
 
@@ -178,12 +178,14 @@ func selectOne(ctx context.Context, table string, where where, columns ...string
 	}
 
 	if query.Next() {
-		return get(query, columnTypes, logger)
+		if r := get(query, columnTypes, logger); r.success {
+			return result{success: true, value: builder.GetStructLikeByTag(r.value, strct, "db")}
+		}
 	}
 	return result{success: false}
 }
 
-func selectReal(ctx context.Context, table string, where where, columns ...string) result {
+func selectReal(ctx context.Context, strct interface{}, table string, where where, columns ...string) result {
 	logger := ctx.Value("logger").(zerolog.Logger)
 	tx := ctx.Value("tx").(*sqlx.Tx)
 
@@ -207,18 +209,18 @@ func selectReal(ctx context.Context, table string, where where, columns ...strin
 		logger.Error().Caller(1).Err(err).Send()
 		return result{success: false}
 	}
-	var resultSlice []interface{}
+	resultSlice := reflect.MakeSlice(reflect.SliceOf(reflect.TypeOf(strct)), 0, 16)
 	for query.Next() {
-		r := get(query, columnTypes, logger)
-		if !r.success {
-			return r
+		if result := get(query, columnTypes, logger); result.success {
+			resultSlice = reflect.Append(resultSlice, reflect.ValueOf(builder.GetStructLikeByTag(result.value, strct, "db")))
+		} else {
+			return result
 		}
-		resultSlice = append(resultSlice, r.b)
 	}
-	return result{success: true, b: builder.Set(builder.EmptyBuilder, "list", resultSlice).(builder.Builder)}
+	return result{success: true, value: resultSlice.Interface()}
 }
 
-func insertOne(ctx context.Context, table string, cv cv) result {
+func insertOne(ctx context.Context, strct interface{}, table string, cv cv) result {
 	logger := ctx.Value("logger").(zerolog.Logger)
 	tx := ctx.Value("tx").(*sqlx.Tx)
 	build := builder.EmptyBuilder
@@ -229,7 +231,12 @@ func insertOne(ctx context.Context, table string, cv cv) result {
 		columns, values = append(columns, col), append(values, value)
 	}
 	r, err := psql.Insert(table).Columns(columns...).Values(values...).RunWith(tx).Exec()
-	return assertSqlResult(r, err, logger)
+	if sr := assertSqlResult(r, err, logger); sr.success {
+		sr.value = builder.GetStructLikeByTag(build, strct, "db")
+		return sr
+	} else {
+		return sr
+	}
 }
 
 func update(ctx context.Context, table string, cv cv, where where, directSet ...string) result {

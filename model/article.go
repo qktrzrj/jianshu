@@ -3,7 +3,6 @@ package model
 import (
 	"context"
 	"errors"
-	"github.com/unrotten/builder"
 	"github.com/unrotten/sqlex"
 	"time"
 )
@@ -30,24 +29,19 @@ type Article struct {
 }
 
 func GetArticle(ctx context.Context, where where, columns ...string) (Article, error) {
-	result := selectOne(ctx, "article", where, columns...)
+	result := selectOne(ctx, Article{}, "article", where, columns...)
 	if !result.success {
 		return Article{}, errors.New("获取文章信息失败")
 	}
-	return builder.GetStructLikeByTag(result.b, Article{}, "db").(Article), nil
+	return result.value.(Article), nil
 }
 
 func GetArticles(ctx context.Context, where where, columns ...string) ([]Article, error) {
-	result := selectList(ctx, "article", where, columns...)
+	result := selectList(ctx, Article{}, "article", where, columns...)
 	if !result.success {
 		return nil, errors.New("获取文章信息失败")
 	}
-	list, _ := builder.Get(result.b, "list")
-	articles := make([]Article, 0, len(list.([]interface{})))
-	for _, item := range list.([]interface{}) {
-		articles = append(articles, builder.GetStructLikeByTag(item, Article{}, "db").(Article))
-	}
-	return articles, nil
+	return result.value.([]Article), nil
 }
 
 func InsertArticle(ctx context.Context, cv cv) (Article, error) {
@@ -56,11 +50,11 @@ func InsertArticle(ctx context.Context, cv cv) (Article, error) {
 		return Article{}, err
 	}
 	cv["id"] = int64(id)
-	result := insertOne(ctx, "article", cv)
+	result := insertOne(ctx, Article{}, "article", cv)
 	if !result.success {
 		return Article{}, errors.New("新增文章失败")
 	}
-	return builder.GetStructLikeByTag(result.b, Article{}, "db").(Article), nil
+	return result.value.(Article), nil
 }
 
 func UpdateArticle(ctx context.Context, cv cv, id int64) error {
