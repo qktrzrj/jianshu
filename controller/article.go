@@ -3,15 +3,16 @@ package controller
 import (
 	"github.com/graphql-go/graphql"
 	"github.com/graphql-go/relay"
+	"github.com/unrotten/hello-world-web/model"
 )
 
 var articleState = graphql.NewEnum(graphql.EnumConfig{
 	Name: "ArticleState",
 	Values: graphql.EnumValueConfigMap{
-		"unaudited": {Value: "unaudited", Description: "未审核"},
-		"online":    {Value: "online", Description: "已上线"},
-		"offline":   {Value: "offline", Description: "已下线"},
-		"deleted":   {Value: "deleted", Description: "已删除"},
+		"unaudited": {Value: model.Unaudited, Description: "未审核"},
+		"online":    {Value: model.Online, Description: "已上线"},
+		"offline":   {Value: model.Offline, Description: "已下线"},
+		"deleted":   {Value: model.Deleted, Description: "已删除"},
 	},
 	Description: "文章状态",
 })

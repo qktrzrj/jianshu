@@ -3,24 +3,25 @@ package controller
 import (
 	"github.com/graphql-go/graphql"
 	"github.com/graphql-go/relay"
+	"github.com/unrotten/hello-world-web/model"
 )
 
 var gender = graphql.NewEnum(graphql.EnumConfig{
 	Name: "Gender",
 	Values: graphql.EnumValueConfigMap{
-		"man":     {Value: "man", Description: "男"},
-		"woman":   {Value: "woman", Description: "女"},
-		"unknown": {Value: "unknown", Description: "保密"},
+		"man":     {Value: model.Man, Description: "男"},
+		"woman":   {Value: model.Woman, Description: "女"},
+		"unknown": {Value: model.Unknown, Description: "保密"},
 	},
 	Description: "性别",
 })
 var userState = graphql.NewEnum(graphql.EnumConfig{
 	Name: "UserState",
 	Values: graphql.EnumValueConfigMap{
-		"unsign":    {Value: "unsign", Description: "未认证"},
-		"normal":    {Value: "normal", Description: "正常"},
-		"forbidden": {Value: "forbidden", Description: "禁止发言"},
-		"freeze":    {Value: "freeze", Description: "冻结"},
+		"unsign":    {Value: model.Unsign, Description: "未认证"},
+		"normal":    {Value: model.Normal, Description: "正常"},
+		"forbidden": {Value: model.Forbidden, Description: "禁止发言"},
+		"freeze":    {Value: model.Freeze, Description: "冻结"},
 	},
 	Description: "用户状态",
 })
