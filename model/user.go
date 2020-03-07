@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 	"errors"
+	"github.com/unrotten/sqlex"
 	"time"
 )
 
@@ -61,7 +62,7 @@ func InsertUser(ctx context.Context, cv map[string]interface{}) (User, error) {
 	if !result.success {
 		return User{}, errors.New("插入用户数据失败")
 	}
-	return result.value.(User), nil
+	return GetUser(ctx, where{sqlex.Eq{"id": id}})
 }
 
 func UpdateUser(ctx context.Context, cv cv, where where) error {

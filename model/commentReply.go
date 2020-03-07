@@ -36,6 +36,10 @@ func InsertReply(ctx context.Context, cv cv) (CommentReply, error) {
 	if !result.success {
 		return CommentReply{}, errors.New("保存回复失败")
 	}
+	result = selectOne(ctx, CommentReply{}, "comment_reply", where{sqlex.Eq{"id": id}})
+	if !result.success {
+		return CommentReply{}, errors.New("获取回复失败")
+	}
 	return result.value.(CommentReply), nil
 }
 

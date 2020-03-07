@@ -38,6 +38,10 @@ func InsertComment(ctx context.Context, cv cv) (Comment, error) {
 	if !result.success {
 		return Comment{}, errors.New("保存评论失败")
 	}
+	result = selectOne(ctx, Comment{}, "comment", where{sqlex.Eq{"id": id}})
+	if !result.success {
+		return Comment{}, errors.New("获取评论失败")
+	}
 	return result.value.(Comment), nil
 }
 

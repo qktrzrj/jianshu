@@ -54,7 +54,7 @@ func InsertArticle(ctx context.Context, cv cv) (Article, error) {
 	if !result.success {
 		return Article{}, errors.New("新增文章失败")
 	}
-	return result.value.(Article), nil
+	return GetArticle(ctx, where{sqlex.Eq{"id": id}})
 }
 
 func UpdateArticle(ctx context.Context, cv cv, id int64) error {

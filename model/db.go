@@ -223,20 +223,13 @@ func selectReal(ctx context.Context, strct interface{}, table string, where wher
 func insertOne(ctx context.Context, strct interface{}, table string, cv cv) result {
 	logger := ctx.Value("logger").(zerolog.Logger)
 	tx := ctx.Value("tx").(*sqlx.Tx)
-	build := builder.EmptyBuilder
 	cv["created_at"], cv["updated_at"] = time.Now(), time.Now()
 	columns, values := make([]string, 0, len(cv)), make([]interface{}, 0, len(cv))
 	for col, value := range cv {
-		build = builder.Set(build, col, value).(builder.Builder)
 		columns, values = append(columns, col), append(values, value)
 	}
 	r, err := psql.Insert(table).Columns(columns...).Values(values...).RunWith(tx).Exec()
-	if sr := assertSqlResult(r, err, logger); sr.success {
-		sr.value = builder.GetStructLikeByTag(build, strct, "db")
-		return sr
-	} else {
-		return sr
-	}
+	return assertSqlResult(r, err, logger)
 }
 
 func update(ctx context.Context, table string, cv cv, where where, directSet ...string) result {

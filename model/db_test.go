@@ -27,6 +27,8 @@ func Test_insertOne(t *testing.T) {
 		"root":     true,
 	})
 	assert.Equal(t, true, result.success)
+	result = selectOne(ctx, User{}, `"user"`, where{sqlex.Eq{"id": id}})
+	assert.Equal(t, true, result.success)
 	user := result.value.(User)
 	user.CreatedAt, user.UpdatedAt, user.DeletedAt = time.Time{}, time.Time{}, time.Time{}
 	assert.Equal(t, User{
