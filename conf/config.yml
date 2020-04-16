@@ -1,0 +1,46 @@
+app:
+  storage:
+    enabled:
+      true
+    type:
+      postgres
+    url:
+      host=192.168.1.20 port=5432 user=admin password=admin dbname=postgres sslmode=disable
+  http:
+    port:
+      8008
+  jwt:
+    secret:
+      shyptr
+  logger:
+    enable:
+      false
+    path:
+      /Users/yan/GolandProjects/log/hello-world-web/log/log.log
+    level:
+      0 # use zerolog config，0->debug,1->info,3->warn,4->error,5->fatal,6->panic,7->nolevel,8->disable,-1-> trace
+  mail:
+    enable:
+      true
+    host:
+      smtp.gmail.com
+    port:
+      465
+    email:
+      unrotten7@gmail.com
+    password:
+      muyi2144
+  etcd:
+    enable:
+      true
+    host:
+      etcd
+    port:
+      2379
+  redis:
+    enable:
+      true
+    host:
+      192.168.1.20
+    port:
+      6379

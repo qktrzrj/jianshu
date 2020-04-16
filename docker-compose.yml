@@ -1,0 +1,95 @@
+version: '3'
+
+services:
+
+  etcd:
+    hostname: etcd
+    image: bitnami/etcd:3
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+    user: root
+    volumes:
+      - /Users/yan/etcd/data:/opt/bitnami/etcd/data
+    environment:
+      - ETCD_ADVERTISE_CLIENT_URLS=http://etcd:2379
+      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
+      - ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380
+      - ETCD_INITIAL_ADVERTISE_PEER_URLS=http://0.0.0.0:2380
+      - ALLOW_NONE_AUTHENTICATION=yes
+      - ETCD_INITIAL_CLUSTER=node1=http://0.0.0.0:2380
+      - ETCD_NAME=node1
+      - ETCD_DATA_DIR=/opt/bitnami/etcd/data
+
+  e3w:
+    hostname: e3w
+    image: soyking/e3w:latest
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+    ports:
+      - 8080:8080
+    volumes:
+      -  /Users/yan/etcd/e3w/conf/config.default.ini:/app/conf/config.default.ini
+
+  user_service:
+    build:
+      ./user_service
+    volumes:
+      - ./conf:/app/conf
+    depends_on:
+      - etcd
+    environment:
+      - MICRO_SERVER_ADDRESS:30001
+      - MICRO_REGISTRY:"etcd"
+
+  article_service:
+    build:
+      ./article_service
+    volumes:
+      - ./conf:/app/conf
+    depends_on:
+      - etcd
+    environment:
+      - MICRO_SERVER_ADDRESS:30002
+      - MICRO_REGISTRY:"etcd"
+
+  comment_service:
+    build:
+      ./comment_service
+    volumes:
+      - ./conf:/app/conf
+    depends_on:
+      - etcd
+    environment:
+      - MICRO_SERVER_ADDRESS:30003
+      - MICRO_REGISTRY:"etcd"
+
+  zan_service:
+    build:
+      ./zan_service
+    volumes:
+      - ./conf:/app/conf
+    depends_on:
+      - etcd
+    environment:
+      - MICRO_SERVER_ADDRESS:30004
+      - MICRO_REGISTRY:"etcd"
+
+  gateway:
+    build:
+      ./gateway
+    volumes:
+      - ./conf:/app/conf
+    depends_on:
+      - etcd
+      - article_service
+      - user_service
+      - zan_service
+      - comment_service
+    ports:
+      - 8008:8008
+    environment:
+      - MICRO_REGISTRY:"etcd"

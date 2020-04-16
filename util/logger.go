@@ -2,10 +2,11 @@ package util
 
 import (
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
-	"github.com/spf13/viper"
+	"github.com/shyptr/graphql/context"
+	"github.com/shyptr/hello-world-web/setting"
 	"io"
+	"log"
 	"os"
 	"strings"
 	"sync"
@@ -18,23 +19,20 @@ var (
 	pool sync.Pool
 )
 
-func init() {
-	loggerFile := viper.GetString("logger.file_path")
-	loggerlevel := viper.GetInt("logger.level")
-	// 初始化日志配置
-	zerolog.SetGlobalLevel(zerolog.Level(loggerlevel))
-	if loggerFile == "" {
+func InitLogger() {
+	zerolog.SetGlobalLevel(zerolog.Level(setting.GetLoggerConfig().GetLevel()))
+	if !setting.GetLoggerConfig().GetEnable() {
 		logOutPut = zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339}
 	} else {
-		err := os.MkdirAll(loggerFile[:strings.LastIndexByte(loggerFile, '/')+1], 0777)
+		err := os.MkdirAll(setting.GetLoggerConfig().GetPath()[:strings.LastIndexByte(setting.GetLoggerConfig().GetPath(), '/')+1], 0777)
 		if err != nil {
-			panic(fmt.Errorf("打开日志文件[%s]失败 \n", loggerFile))
+			panic(fmt.Errorf("open logger file [%s] failed \n", setting.GetLoggerConfig().GetPath()))
 		}
-		file, err := os.Create(loggerFile)
+		file, err := os.Create(setting.GetLoggerConfig().GetPath())
 		if err != nil {
-			panic(fmt.Errorf("打开日志文件[%s]失败 \n", loggerFile))
+			panic(fmt.Errorf("open logger file [%s] failed \n", setting.GetLoggerConfig().GetPath()))
 		}
-		gin.DefaultWriter = io.MultiWriter(file, os.Stdout)
+		context.SetLogger(log.New(io.MultiWriter(file, os.Stdout), log.Prefix(), log.Flags()))
 		logOutPut = zerolog.ConsoleWriter{Out: io.MultiWriter(file, os.Stdout), TimeFormat: time.RFC3339}
 	}
 	logOutPut.FormatLevel = func(i interface{}) string {
