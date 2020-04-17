@@ -1,52 +1,95 @@
 package setting
 
 import (
-	"fmt"
+	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/viper"
+	"log"
+	"sync"
 )
+
+type Storage interface {
+	GetHost() string
+	GetPort() int
+	GetUsername() string
+	GetPassword() string
+	GetDBName() string
+}
+
+type storageConfig struct {
+	Host     string `json:"host"`
+	Port     int    `json:"port"`
+	Username string `json:"user"`
+	Password string `json:"password"`
+	DBName   string `json:"dbname"`
+}
+
+func (s storageConfig) GetHost() string {
+	return s.Host
+}
+
+func (s storageConfig) GetPort() int {
+	return s.Port
+}
+
+func (s storageConfig) GetUsername() string {
+	return s.Username
+}
+
+func (s storageConfig) GetPassword() string {
+	return s.Password
+}
+
+func (s storageConfig) GetDBName() string {
+	return s.DBName
+}
 
 var (
-	RunMode string
-
-	HttpPort string
-
-	MailHost string
-	MailPort int
-	MailAddr string
-	MailPwd  string
-
-	JwtSecret string
+	jwtSecret string
+	httpPort  int
+	storage   storageConfig
+	once      sync.Once
 )
 
-func init() {
-	viper.AddConfigPath("config")
-	err := viper.ReadInConfig()
-	if err != nil {
-		panic(fmt.Errorf("读取配置文件失败: %s \n", err))
-	}
+func Init() {
+	once.Do(func() {
+		viper.AddConfigPath("config")
+		err := viper.ReadInConfig()
+		if err != nil {
+			log.Fatalf("读取配置文件出错：%s", err)
+		}
 
-	// 设置默认配置
-	viper.SetDefault("run_mode", "0")
+		//设置默认值
+		viper.SetDefault("app.jwt_secret", "secure")
+		viper.SetDefault("http.port", 8008)
 
-	viper.SetDefault("http.port", "8008")
+		// 读取配置内容
+		jwtSecret = viper.GetString("app.jwt_secret")
+		httpPort = viper.GetInt("http.port")
+		err = viper.UnmarshalKey("storage", &storage, func(config *mapstructure.DecoderConfig) {
+			config.TagName = "json"
+		})
+		if err != nil {
+			log.Fatalf("读取数据库配置信息出错：%s", err)
+		}
 
-	viper.SetDefault("logger.level", "debug")
+		//// 监控JwtSecret
+		//go func() {
+		//	for {
+		//		viper.WatchConfig()
+		//		jwtSecret = viper.GetString("app.jwt_secret")
+		//	}
+		//}()
+	})
+}
 
-	viper.SetDefault("storage.user", "admin")
-	viper.SetDefault("storage.password", "admin")
-	viper.SetDefault("storage.host", "localhost")
-	viper.SetDefault("storage.port", 5432)
-	viper.SetDefault("storage.dbname", "postgres")
+func GetJwtSecret() string {
+	return jwtSecret
+}
 
-	// 获取配置信息
-	RunMode = viper.GetString("run_mode")
+func GetHttpPort() int {
+	return httpPort
+}
 
-	HttpPort = viper.GetString("http.port")
-
-	MailHost = viper.GetString("mail.host")
-	MailPort = viper.GetInt("mail.port")
-	MailAddr = viper.GetString("mail.email")
-	MailPwd = viper.GetString("mail.password")
-
-	JwtSecret = viper.GetString("app.jwt_secret")
+func GetStorage() Storage {
+	return storage
 }
