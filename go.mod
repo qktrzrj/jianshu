@@ -9,7 +9,7 @@ require (
 	github.com/lib/pq v1.1.1
 	github.com/mitchellh/mapstructure v1.1.2
 	github.com/rs/zerolog v1.18.0
-	github.com/shyptr/graphql v1.0.3
+	github.com/shyptr/graphql v1.0.5
 	github.com/shyptr/plugins v0.0.0-20200416002948-3cde4c9da77c
 	github.com/shyptr/sqlex v1.4.12
 	github.com/sony/sonyflake v1.0.0

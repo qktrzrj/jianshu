@@ -30,7 +30,7 @@ func InitLog() {
 			return fmt.Sprintf("%s:", i)
 		}
 		logOutPut.FormatFieldValue = func(i interface{}) string {
-			return strings.ToUpper(fmt.Sprintf("%s", i))
+			return fmt.Sprintf("%s |", i)
 		}
 
 		logPool.New = func() interface{} {

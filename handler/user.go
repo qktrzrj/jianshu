@@ -41,12 +41,15 @@ func registerUser(schema *schemabuilder.Schema) {
 	query.FieldFunc("CurrentUser", func(ctx context.Context) (model.User, error) {
 		return resolve.UserResolver.User(ctx, resolve.IdArgs{Id: ctx.Value("userId").(uint64)})
 	}, middleware.BasicAuth(), middleware.LoginNeed())
+	// 校验用户名/邮箱唯一性
+	query.FieldFunc("ValidUsername", resolve.UserResolver.ValidUsername)
+	query.FieldFunc("ValidEmail", resolve.UserResolver.ValidEmail)
 
 	mutation := schema.Mutation()
 	// 注册
 	mutation.FieldFunc("SignUp", resolve.UserResolver.SingUp, middleware.BasicAuth(), middleware.NotLogin())
 	// 登录
-	mutation.FieldFunc("SingIn", resolve.UserResolver.SignIn, middleware.BasicAuth(), middleware.NotLogin())
+	mutation.FieldFunc("SignIn", resolve.UserResolver.SignIn, middleware.BasicAuth(), middleware.NotLogin())
 	// 退出登录
 	mutation.FieldFunc("Logout", resolve.UserResolver.Logout, middleware.BasicAuth(), middleware.LoginNeed())
 	// 关注

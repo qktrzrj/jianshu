@@ -15,7 +15,11 @@ import (
 
 func CORS() graphql.HandlerFunc {
 	return func(c *graphql.Context) {
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
+		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type,X-Requested-With")
 		if c.Request.Method == http.MethodOptions {
+			c.Writer.WriteHeader(http.StatusOK)
 			return
 		}
 		c.Next()
@@ -31,7 +35,7 @@ func Logger() graphql.HandlerFunc {
 			reqMethod := c.Method
 			statusCode := c.Writer.Status()
 			clientIP := c.ClientIP()
-			operationName := c.Value("operationName")
+			operationName := c.OperationName
 			if operationName == "" {
 				operationName = "query"
 			}
