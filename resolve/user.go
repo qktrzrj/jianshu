@@ -185,7 +185,7 @@ func (u userResolver) SingUp(ctx context.Context, args model.UserArg) (user mode
 
 	// TODO:邮箱验证
 
-	user, _ = model.GetUser(tx, id, "", "")
+	user, _ = u.User(ctx, IdArgs{id})
 	return user, nil
 }
 
@@ -214,10 +214,13 @@ func (u userResolver) SignIn(ctx context.Context, args struct {
 		return model.User{}, err
 	}
 
-	// 生成token，并设置cookie
-	age := 1
+	user.Count, _ = model.GetUserCount(tx, user.Id)
+
+	// 生成token，并设置cookie,默认一天,记住则为7天
+	// TODO: remember天数应该做配置化
+	age := time.Hour * 24
 	if args.RememberMe {
-		age = 7 * 24
+		age *= 7
 	}
 	token, err := util.GeneraToken(user.Id, age)
 	if err != nil {
@@ -229,9 +232,9 @@ func (u userResolver) SignIn(ctx context.Context, args struct {
 		Name:    "me",
 		Value:   token,
 		Path:    "/",
-		Expires: time.Now().AddDate(0, 0, 1),
+		Expires: time.Now().Add(age),
 		Domain:  "localhost",
-		MaxAge:  int(time.Hour) * age * 24,
+		MaxAge:  int(age),
 	})
 	return user, nil
 }

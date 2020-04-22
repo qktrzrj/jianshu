@@ -4,12 +4,16 @@ go 1.13
 
 require (
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
+	github.com/go-redis/redis/v7 v7.2.0
 	github.com/golang/protobuf v1.4.0 // indirect
 	github.com/jmoiron/sqlx v1.2.0
 	github.com/lib/pq v1.1.1
+	github.com/mailru/easyjson v0.7.1 // indirect
 	github.com/mitchellh/mapstructure v1.1.2
+	github.com/olivere/elastic/v7 v7.0.14
+	github.com/pkg/errors v0.9.1 // indirect
 	github.com/rs/zerolog v1.18.0
-	github.com/shyptr/graphql v1.0.5
+	github.com/shyptr/graphql v1.0.8
 	github.com/shyptr/plugins v0.0.0-20200416002948-3cde4c9da77c
 	github.com/shyptr/sqlex v1.4.12
 	github.com/sony/sonyflake v1.0.0
@@ -20,3 +24,7 @@ require (
 	golang.org/x/sys v0.0.0-20200413165638-669c56c373c4 // indirect
 	google.golang.org/genproto v0.0.0-20200416231807-8751e049a2a0 // indirect
 )
+
+//replace (
+//github.com/shyptr/graphql  => /Users/yan/GolandProjects/graphql
+//)

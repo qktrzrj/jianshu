@@ -1,6 +1,7 @@
 package model
 
 import (
+	"database/sql"
 	"fmt"
 	"github.com/shyptr/plugins/sqlog"
 	"github.com/shyptr/sqlex"
@@ -25,46 +26,45 @@ const (
 )
 
 type User struct {
-	Id        uint64     `graphql:"id"`
-	Username  string     `graphql:"username"`
-	Email     string     `graphql:"email"`
-	Password  string     `graphql:"-"`
-	Avatar    string     `graphql:"avatar"`
-	Gender    Gender     `graphql:"gender"`
-	Introduce *string    `graphql:"introduce"`
-	State     UserState  `graphql:"state"`
-	Root      bool       `graphql:"root"`
-	CreatedAt time.Time  `graphql:"createdAt"`
-	UpdatedAt time.Time  `graphql:"updatedAt"`
-	DeletedAt *time.Time `graphql:"deletedAt"`
-	Count     UserCount  `graphql:"-"`
+	Id        uint64         `graphql:"id"`
+	Username  string         `graphql:"username"`
+	Email     string         `graphql:"email"`
+	Password  string         `graphql:"-"`
+	Avatar    string         `graphql:"avatar"`
+	Gender    Gender         `graphql:"gender"`
+	Introduce sql.NullString `graphql:"introduce"`
+	State     UserState      `graphql:"state"`
+	Root      bool           `graphql:"root"`
+	CreatedAt time.Time      `graphql:"createdAt"`
+	UpdatedAt time.Time      `graphql:"updatedAt"`
+	DeletedAt sql.NullTime   `graphql:"deletedAt"`
+	Count     UserCount      `graphql:"-"`
 }
 
 type UserCount struct {
-	Uid        uint64    `graphql:"-"`
-	FansNum    int       `graphql:"fansNum"`
-	FollowNum  int       `graphql:"followNum"`
-	ArticleNum int       `graphql:"articleNum"`
-	Words      int       `graphql:"words"`
-	LikeNum    int       `graphql:"likeNum"`
-	CreatedAt  time.Time `graphql:"-"`
-	UpdatedAt  time.Time `graphql:"-"`
-	DeletedAt  time.Time `graphql:"-"`
+	Uid        uint64       `graphql:"-"`
+	FansNum    int          `graphql:"fansNum"`
+	FollowNum  int          `graphql:"followNum"`
+	ArticleNum int          `graphql:"articleNum"`
+	Words      int          `graphql:"words"`
+	LikeNum    int          `graphql:"likeNum"`
+	CreatedAt  time.Time    `graphql:"-"`
+	UpdatedAt  time.Time    `graphql:"-"`
+	DeletedAt  sql.NullTime `graphql:"-"`
 }
 
 type UserFollow struct {
-	Id        uint64    `graphql:"-"`
-	Uid       uint64    `graphql:"-"`
-	Fuid      uint64    `graphql:"-"`
-	CreatedAt time.Time `graphql:"createdAt"`
-	UpdatedAt time.Time `graphql:"updatedAt"`
-	DeletedAt time.Time `graphql:"deletedAt"`
+	Id        uint64       `graphql:"-"`
+	Uid       uint64       `graphql:"-"`
+	Fuid      uint64       `graphql:"-"`
+	CreatedAt time.Time    `graphql:"createdAt"`
+	UpdatedAt time.Time    `graphql:"updatedAt"`
+	DeletedAt sql.NullTime `graphql:"deletedAt"`
 }
 
 func GetUser(tx *sqlog.DB, id uint64, username, email string) (User, error) {
 	rows, err := PSql.Select("id,username,email,password,avatar,gender,introduce,state,root,created_at,updated_at,deleted_at").
 		From(`"user"`).
-		Where("deleted_at is null").
 		WhereExpr(
 			sqlex.IF{id != 0, sqlex.Eq{"id": id}},
 		).
@@ -94,7 +94,6 @@ func GetUserCount(tx *sqlog.DB, id uint64) (UserCount, error) {
 	rows, err := PSql.Select("fans_num,follow_num,article_num,words,like_num").
 		From("user_count").
 		Where("uid=$1", id).
-		Where("deleted_at is null").
 		RunWith(tx).Query()
 	if err != nil {
 		return UserCount{}, err
@@ -114,7 +113,6 @@ func GetUserFollower(tx *sqlog.DB, id uint64) ([]uint64, error) {
 	rows, err := PSql.Select("fuid").
 		From("user_follow").
 		Where("uid=$1", id).
-		Where("deleted_at is null").
 		RunWith(tx).Query()
 	if err != nil {
 		return nil, err
@@ -136,7 +134,6 @@ func GetFollowUser(tx *sqlog.DB, id uint64) ([]uint64, error) {
 	rows, err := PSql.Select("uid").
 		From("user_follow").
 		Where("fuid=$1", id).
-		Where("deleted_at is null").
 		RunWith(tx).Query()
 	if err != nil {
 		return nil, err
@@ -162,7 +159,7 @@ type UserArg struct {
 }
 
 func InsertUser(tx *sqlog.DB, arg UserArg) (uint64, error) {
-	id, err := idfetcher.NextID()
+	id, err := IdFetcher.NextID()
 	if err != nil {
 		return id, err
 	}
@@ -193,7 +190,7 @@ func InsertUserCount(tx *sqlog.DB, id uint64) error {
 }
 
 func InsertUserFollow(tx *sqlog.DB, uid uint64, fuid uint64) error {
-	id, err := idfetcher.NextID()
+	id, err := IdFetcher.NextID()
 	if err != nil {
 		return err
 	}

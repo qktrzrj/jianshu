@@ -15,6 +15,13 @@ type Storage interface {
 	GetDBName() string
 }
 
+type Redis interface {
+	GetHost() string
+	GetPort() int
+	GetDB() int
+	GetPassword() string
+}
+
 type storageConfig struct {
 	Host     string `json:"host"`
 	Port     int    `json:"port"`
@@ -23,30 +30,30 @@ type storageConfig struct {
 	DBName   string `json:"dbname"`
 }
 
-func (s storageConfig) GetHost() string {
-	return s.Host
+type redisConfig struct {
+	Host     string `json:"host"`
+	Port     int    `json:"port"`
+	Password string `json:"password"`
+	DB       int    `json:"db"`
 }
 
-func (s storageConfig) GetPort() int {
-	return s.Port
-}
+func (s storageConfig) GetHost() string     { return s.Host }
+func (s storageConfig) GetPort() int        { return s.Port }
+func (s storageConfig) GetUsername() string { return s.Username }
+func (s storageConfig) GetPassword() string { return s.Password }
+func (s storageConfig) GetDBName() string   { return s.DBName }
 
-func (s storageConfig) GetUsername() string {
-	return s.Username
-}
-
-func (s storageConfig) GetPassword() string {
-	return s.Password
-}
-
-func (s storageConfig) GetDBName() string {
-	return s.DBName
-}
+func (r redisConfig) GetHost() string     { return r.Host }
+func (r redisConfig) GetPort() int        { return r.Port }
+func (r redisConfig) GetDB() int          { return r.DB }
+func (r redisConfig) GetPassword() string { return r.Password }
 
 var (
 	jwtSecret string
 	httpPort  int
+	esUrl     string
 	storage   storageConfig
+	redis     redisConfig
 	once      sync.Once
 )
 
@@ -65,13 +72,19 @@ func Init() {
 		// 读取配置内容
 		jwtSecret = viper.GetString("app.jwt_secret")
 		httpPort = viper.GetInt("http.port")
+		esUrl = viper.GetString("es.url")
 		err = viper.UnmarshalKey("storage", &storage, func(config *mapstructure.DecoderConfig) {
 			config.TagName = "json"
 		})
 		if err != nil {
 			log.Fatalf("读取数据库配置信息出错：%s", err)
 		}
-
+		err = viper.UnmarshalKey("cache", &redis, func(config *mapstructure.DecoderConfig) {
+			config.TagName = "json"
+		})
+		if err != nil {
+			log.Fatalf("读取数据库配置信息出错：%s", err)
+		}
 		//// 监控JwtSecret
 		//go func() {
 		//	for {
@@ -90,6 +103,14 @@ func GetHttpPort() int {
 	return httpPort
 }
 
+func GetESUrl() string {
+	return esUrl
+}
+
 func GetStorage() Storage {
 	return storage
+}
+
+func GetCache() Redis {
+	return redis
 }

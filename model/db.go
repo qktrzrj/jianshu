@@ -35,7 +35,7 @@ func (s sqloger) Show() bool {
 var (
 	DB        *sqlog.DB
 	PSql      sqlex.StatementBuilderType
-	idfetcher *sonyflake.Sonyflake
+	IdFetcher *sonyflake.Sonyflake
 	once      sync.Once
 )
 
@@ -47,7 +47,7 @@ func Init() {
 		db := sqlx.MustOpen("postgres", pi)
 		DB = &sqlog.DB{Runner: db, Logger: sqloger{logger: util.GetLogger()}}
 		PSql = sqlex.StatementBuilder.PlaceholderFormat(sqlex.Dollar)
-		idfetcher = sonyflake.NewSonyflake(sonyflake.Settings{
+		IdFetcher = sonyflake.NewSonyflake(sonyflake.Settings{
 			StartTime: time.Date(2020, 4, 1, 0, 0, 0, 0, time.Local),
 			MachineID: func() (uint16, error) {
 				return 0, nil

@@ -11,6 +11,7 @@ import (
 func Register(mux *http.ServeMux) {
 	builder := schemabuilder.NewSchema()
 	registerUser(builder)
+	registerArticle(builder)
 	schema, err := builder.Build()
 	if err != nil {
 		log.Fatalln(err)

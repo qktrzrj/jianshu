@@ -12,3 +12,14 @@ password = "admin"
 host = "localhost"
 port = 5432
 dbname = "postgres"
+
+# redis配置
+[cache]
+host = "localhost"
+port = 6379
+db = 0
+password = ""
+
+# es
+[es]
+url = "http://47.240.125.93:9200"

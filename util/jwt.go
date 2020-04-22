@@ -9,9 +9,9 @@ import (
 	"time"
 )
 
-func GeneraToken(id uint64, age int) (string, error) {
+func GeneraToken(id uint64, age time.Duration) (string, error) {
 	claims := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.StandardClaims{
-		ExpiresAt: int64(time.Hour) * int64(age),
+		ExpiresAt: int64(age),
 		Id:        fmt.Sprintf("%d", id),
 	})
 	return claims.SignedString([]byte(setting.GetJwtSecret()))

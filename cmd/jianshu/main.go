@@ -19,6 +19,8 @@ func init() {
 	setting.Init()
 	util.InitLog()
 	model.Init()
+	model.RedisInit()
+	model.ESInit()
 }
 
 func main() {
