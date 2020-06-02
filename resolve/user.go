@@ -9,6 +9,7 @@ import (
 	"github.com/shyptr/jianshu/model"
 	"github.com/shyptr/jianshu/util"
 	"github.com/shyptr/plugins/sqlog"
+	"github.com/shyptr/sqlex"
 	"golang.org/x/crypto/bcrypt"
 	"net/http"
 	"time"
@@ -19,7 +20,7 @@ type userResolver struct{}
 var UserResolver userResolver
 
 type IdArgs struct {
-	Id uint64 `graphql:"id"`
+	Id int `graphql:"id"`
 }
 
 // 根据用户ID查询用户信息
@@ -42,14 +43,14 @@ func (u userResolver) User(ctx context.Context, args IdArgs) (model.User, error)
 }
 
 // 粉丝列表
-func (u userResolver) Followers(ctx context.Context, user model.User) ([]model.User, error) {
+func (u userResolver) Followers(ctx context.Context, arg IdArgs) ([]model.User, error) {
 	logger := ctx.Value("logger").(zerolog.Logger)
 	tx := ctx.Value("tx").(*sqlog.DB)
 
-	ids, err := model.GetUserFollower(tx, user.Id)
+	ids, err := model.GetUserFollower(tx, arg.Id)
 	if err != nil {
 		logger.Error().Caller().Err(err).Send()
-		return nil, fmt.Errorf("查询用户信息失败")
+		return nil, fmt.Errorf("获取粉丝列表失败")
 	}
 	var users []model.User
 	for _, id := range ids {
@@ -63,14 +64,14 @@ func (u userResolver) Followers(ctx context.Context, user model.User) ([]model.U
 }
 
 // 关注列表
-func (u userResolver) Follows(ctx context.Context, user model.User) ([]model.User, error) {
+func (u userResolver) Follows(ctx context.Context, arg IdArgs) ([]model.User, error) {
 	logger := ctx.Value("logger").(zerolog.Logger)
 	tx := ctx.Value("tx").(*sqlog.DB)
 
-	ids, err := model.GetFollowUser(tx, user.Id)
+	ids, err := model.GetFollowUser(tx, arg.Id)
 	if err != nil {
 		logger.Error().Caller().Err(err).Send()
-		return nil, fmt.Errorf("查询用户信息失败")
+		return nil, fmt.Errorf("获取粉丝列表失败")
 	}
 	var users []model.User
 	for _, id := range ids {
@@ -94,8 +95,8 @@ func (u userResolver) ValidUsername(ctx context.Context, args usernameArg) error
 
 	rows, err := model.PSql.
 		Select("count(id)").
-		From(`"user"`).
-		Where("username=$1", args.Username).
+		From("`user`").
+		Where(sqlex.Eq{"username": args.Username}).
 		RunWith(tx).Query()
 	if err != nil {
 		logger.Error().Caller().Err(err).Send()
@@ -127,8 +128,8 @@ func (u userResolver) ValidEmail(ctx context.Context, args emailArg) error {
 
 	rows, err := model.PSql.
 		Select("count(id)").
-		From(`"user"`).
-		Where("email=$1", args.Email).
+		From("`user`").
+		Where(sqlex.Eq{"email": args.Email}).
 		RunWith(tx).Query()
 	if err != nil {
 		logger.Error().Caller().Err(err).Send()
@@ -150,10 +151,15 @@ func (u userResolver) ValidEmail(ctx context.Context, args emailArg) error {
 }
 
 // 注册
-func (u userResolver) SingUp(ctx context.Context, args model.UserArg) (user model.User, err error) {
+func (u userResolver) SingUp(ctx context.Context, args struct {
+	Username string `graphql:"username" validate:"min=6,max=16"`
+	Email    string `graphql:"email" validate:"email"`
+	Password string `graphql:"password" validate:"min=8"`
+}) (user model.User, err error) {
 	logger := ctx.Value("logger").(zerolog.Logger)
 	tx := ctx.Value("tx").(*sqlog.DB)
 
+	// 校验用户名和邮箱信息
 	err = u.ValidUsername(ctx, usernameArg{Username: args.Username})
 	if err != nil {
 		return model.User{}, err
@@ -170,14 +176,13 @@ func (u userResolver) SingUp(ctx context.Context, args model.UserArg) (user mode
 		return model.User{}, errors.New("注册失败")
 	}
 
-	args.Password = string(password)
-	args.Avatar = "默认头像"
-	id, err := model.InsertUser(tx, args)
-	if err != nil {
-		logger.Error().Caller().Err(err).Send()
-		return model.User{}, errors.New("注册失败")
-	}
-	err = model.InsertUserCount(tx, id)
+	id, err := model.InsertUser(tx, map[string]interface{}{
+		"username": args.Username,
+		"email":    args.Email,
+		"password": string(password),
+		"avatar":   "默认头像",
+		"root":     false,
+	})
 	if err != nil {
 		logger.Error().Caller().Err(err).Send()
 		return model.User{}, errors.New("注册失败")
@@ -185,10 +190,10 @@ func (u userResolver) SingUp(ctx context.Context, args model.UserArg) (user mode
 
 	// TODO:邮箱验证
 
-	user, _ = u.User(ctx, IdArgs{id})
-	return user, nil
+	return u.User(ctx, IdArgs{id})
 }
 
+// 登陆
 func (u userResolver) SignIn(ctx context.Context, args struct {
 	Username   string `graphql:"username"` // 邮箱或者用户名
 	Password   string `graphql:"password"`
@@ -222,7 +227,7 @@ func (u userResolver) SignIn(ctx context.Context, args struct {
 	if args.RememberMe {
 		age *= 7
 	}
-	token, err := util.GeneraToken(user.Id, age)
+	token, err := util.GeneraToken(user.Id, user.Root, int(user.State), age)
 	if err != nil {
 		logger.Error().Caller().AnErr("生成token失败", err).Send()
 		return model.User{}, errors.New("登录失败")
@@ -234,7 +239,6 @@ func (u userResolver) SignIn(ctx context.Context, args struct {
 		Path:    "/",
 		Expires: time.Now().Add(age),
 		Domain:  "localhost",
-		MaxAge:  int(age),
 	})
 	return user, nil
 }
@@ -250,13 +254,11 @@ func (u userResolver) Logout(ctx context.Context) {
 }
 
 // 关注
-func (u userResolver) Follow(ctx context.Context, args struct {
-	Id uint64 `graphql:"id"`
-}) error {
+func (u userResolver) Follow(ctx context.Context, args IdArgs) error {
 	logger := ctx.Value("logger").(zerolog.Logger)
 	tx := ctx.Value("tx").(*sqlog.DB)
 
-	userId := ctx.Value("userId").(uint64)
+	userId := ctx.Value("userId").(int)
 	err := model.InsertUserFollow(tx, args.Id, userId)
 	if err != nil {
 		logger.Error().Caller().AnErr("关注失败", err).Send()
@@ -267,13 +269,11 @@ func (u userResolver) Follow(ctx context.Context, args struct {
 }
 
 // 取消关注
-func (u userResolver) CancelFollow(ctx context.Context, args struct {
-	Id uint64 `graphql:"id"`
-}) error {
+func (u userResolver) CancelFollow(ctx context.Context, args IdArgs) error {
 	logger := ctx.Value("logger").(zerolog.Logger)
 	tx := ctx.Value("tx").(*sqlog.DB)
 
-	userId := ctx.Value("userId").(uint64)
+	userId := ctx.Value("userId").(int)
 	err := model.DeleteUserFollow(tx, args.Id, userId)
 	if err != nil {
 		logger.Error().Caller().AnErr("取消关注失败", err).Send()
@@ -281,4 +281,67 @@ func (u userResolver) CancelFollow(ctx context.Context, args struct {
 	}
 
 	return nil
+}
+
+// 修改用户信息
+func (u userResolver) UpdateUserInfo(ctx context.Context, arg struct {
+	Username  *string       `graphql:"username"`
+	Email     *string       `graphql:"email"`
+	Password  *string       `graphql:"password"`
+	Avatar    *string       `graphql:"avatar"`
+	Gender    *model.Gender `graphql:"gender"`
+	Introduce *string       `graphql:"introduce"`
+}) error {
+	logger := ctx.Value("logger").(zerolog.Logger)
+	tx := ctx.Value("tx").(*sqlog.DB)
+
+	userId := ctx.Value("userId").(int)
+
+	setMap := make(map[string]interface{})
+	if arg.Email != nil {
+		setMap["email"] = *arg.Email
+		if *arg.Email == "" {
+			return errors.New("邮箱不能为空！")
+		}
+	}
+	if arg.Password != nil {
+		setMap["password"] = *arg.Password
+	}
+	if arg.Avatar != nil {
+		setMap["avatar"] = *arg.Avatar
+	}
+	if arg.Gender != nil {
+		setMap["gender"] = *arg.Gender
+	}
+	if arg.Introduce != nil {
+		setMap["introduce"] = *arg.Introduce
+	}
+	if arg.Username != nil {
+		if *arg.Username == "" {
+			return errors.New("用户名不能为空！")
+		}
+		setMap["username"] = *arg.Username
+	}
+
+	err := model.UpdateUser(tx, userId, setMap)
+	if err != nil {
+		logger.Error().Caller().AnErr("修改用户信息失败", err).Send()
+		return errors.New("修改用户信息失败")
+	}
+
+	return nil
+}
+
+// 用户关系
+func (u userResolver) IsFollow(ctx context.Context, arg IdArgs) (bool, error) {
+	logger := ctx.Value("logger").(zerolog.Logger)
+	tx := ctx.Value("tx").(*sqlog.DB)
+
+	userId := ctx.Value("userId").(int)
+	isFollow, err := model.IsFollow(tx, arg.Id, userId)
+	if err != nil {
+		logger.Error().Caller().Err(err).Send()
+		return false, errors.New("查询用户关系失败")
+	}
+	return isFollow, nil
 }

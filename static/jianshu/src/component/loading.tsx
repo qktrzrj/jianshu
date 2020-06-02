@@ -13,7 +13,7 @@ const Loading = () => {
     return (
         <Row>
             <Col span={12} offset={6}>
-                Loading
+
             </Col>
         </Row>
     );

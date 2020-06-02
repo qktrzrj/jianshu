@@ -3,7 +3,6 @@ package model
 import (
 	"database/sql"
 	"errors"
-	"github.com/lib/pq"
 	"github.com/shyptr/plugins/sqlog"
 	"github.com/shyptr/sqlex"
 	"time"
@@ -17,88 +16,67 @@ const (
 	Online
 	Offline
 	Deleted
+	Updated
 )
 
 type Article struct {
-	Id        uint64       `graphql:"id" json:"id"`
-	SN        string       `graphql:"sn" json:"sn"`
-	Title     string       `graphql:"title" json:"title"`
-	Uid       uint64       `graphql:"-" json:"uid"`
-	Cover     string       `graphql:"cover" json:"cover,omitempty"`
-	Tag       []string     `graphql:"tag" json:"tag,omitempty"`
-	Introduce string       `graphql:"introduce" json:"introduce"`
-	Content   string       `graphql:"content" json:"content"`
-	State     ArticleState `graphql:"state" json:"state"`
-	CreatedAt time.Time    `graphql:"createdAt" json:"createdAt"`
-	UpdatedAt time.Time    `graphql:"updatedAt" json:"updatedAt"`
-	DeletedAt sql.NullTime `graphql:"deletedAt" json:"deletedAt,omitempty"`
-	Author    string       `graphql:"-" json:"author"`
+	Id        int            `graphql:"id" json:"id"`
+	Title     string         `graphql:"title" json:"title"`
+	Uid       int            `graphql:"-" json:"uid"`
+	Cover     sql.NullString `graphql:"cover;;null" json:"cover,omitempty"`
+	SubTitle  string         `graphql:"subTitle" json:"subTitle"`
+	Content   string         `graphql:"content" json:"content"`
+	State     ArticleState   `graphql:"state" json:"state"`
+	CreatedAt time.Time      `graphql:"createdAt" json:"createdAt"`
+	UpdatedAt time.Time      `graphql:"updatedAt" json:"updatedAt"`
+	Author    string         `graphql:"-" json:"author"`
 	ArticleEx `graphql:"-" json:"ex"`
 }
 
 type ArticleEx struct {
-	Aid       uint64       `json:"-"`
-	ViewNum   int          `json:"viewNum"`
-	CmtNum    int          `json:"cmtNum"`
-	LikeNum   int          `json:"likeNum"`
-	CreatedAt time.Time    `json:"-"`
-	UpdatedAt time.Time    `json:"-"`
-	DeletedAt sql.NullTime `json:"-"`
-}
-
-type ArticleDraftArg struct {
-	Id        uint64   `graphql:"id;;null"`
-	Title     string   `graphql:"title;;null"`
-	Cover     string   `graphql:"cover;;null"`
-	Tag       []string `graphql:"tag"`
-	Content   string   `graphql:"content;;null"`
-	Introduce string   `graphql:"-"`
+	ViewNum int `json:"viewNum"`
+	CmtNum  int `json:"cmtNum"`
+	LikeNum int `json:"likeNum"`
 }
 
 type ArticleArg struct {
-	Id      uint64   `graphql:"id;;null"`
-	Title   string   `graphql:"title"`
-	Cover   string   `graphql:"cover;;null"`
-	Tag     []string `graphql:"tag"`
-	Content string   `graphql:"content"`
+	Id        uint64
+	Title     string
+	Cover     string
+	Tag       []string
+	Introduce string
+	Content   *string
 }
 
-func InsertArticle(tx *sqlog.DB, arg ArticleDraftArg, uid uint64, state ArticleState) error {
+// 新增文章
+func InsertArticle(tx *sqlog.DB, setMap map[string]interface{}) (int, error) {
 	result, err := PSql.Insert("article").
-		Columns("id,sn,title,cover,tag,content,introduce,uid,state").
-		Values(arg.Id, arg.Id, arg.Title, arg.Cover, pq.StringArray(arg.Tag), arg.Content, arg.Introduce, uid, state).
+		SetMap(setMap).
 		RunWith(tx).Exec()
 	if err != nil {
-		return err
+		return 0, err
+	}
+	id, _ := result.LastInsertId()
+	if id == 0 {
+		return 0, errors.New("保存失败")
+	}
+
+	result, err = PSql.Insert("article_ex").Columns("aid").Values(id).RunWith(tx).Exec()
+	if err != nil {
+		return 0, err
 	}
 	affected, _ := result.RowsAffected()
 	if affected == 0 {
-		return errors.New("保存失败")
+		return 0, errors.New("保存失败")
 	}
-
-	result, err = PSql.Insert("article_ex").Columns("aid").Values(arg.Id).RunWith(tx).Exec()
-	if err != nil {
-		return err
-	}
-	affected, _ = result.RowsAffected()
-	if affected == 0 {
-		return errors.New("保存失败")
-	}
-	return nil
+	return int(id), nil
 }
 
-func UpdateArticle(tx *sqlog.DB, arg ArticleDraftArg, state ArticleState) error {
+// 修改文章信息
+func UpdateArticle(tx *sqlog.DB, id int, setMap map[string]interface{}) error {
 	result, err := PSql.Update("article").
-		SetMap(map[string]interface{}{
-			"title":      arg.Title,
-			"cover":      arg.Cover,
-			"tag":        pq.StringArray(arg.Tag),
-			"content":    arg.Content,
-			"state":      state,
-			"introduce":  arg.Introduce,
-			"updated_at": time.Now(),
-		}).
-		Where("id = $1", arg.Id).
+		SetMap(setMap).
+		Where(sqlex.Eq{"id": id}).
 		RunWith(tx).Exec()
 	if err != nil {
 		return err
@@ -110,12 +88,13 @@ func UpdateArticle(tx *sqlog.DB, arg ArticleDraftArg, state ArticleState) error 
 	return nil
 }
 
-func QueryArticle(tx *sqlog.DB, id uint64) (Article, error) {
-	rows, err := PSql.Select("a.id,a.uid,a.title,a.cover,a.tag,a.introduce,a.content,a.state,a.created_at",
-		"a.updated_at,a.deleted_at,e.view_num,e.cmt_num,e.like_num").
+// 查询文章内容
+func QueryArticle(tx *sqlog.DB, id int) (Article, error) {
+	rows, err := PSql.Select("a.id,a.uid,a.title,a.cover,a.sub_title,a.content,a.state,a.created_at",
+		"a.updated_at,e.view_num,e.cmt_num,e.like_num").
 		From("article a").
 		LeftJoin("article_ex e on a.id=e.aid").
-		Where("a.id=$1", id).
+		Where(sqlex.Eq{"a.id": id}).
 		Limit(1).
 		RunWith(tx).Query()
 	if err != nil {
@@ -124,34 +103,32 @@ func QueryArticle(tx *sqlog.DB, id uint64) (Article, error) {
 	defer rows.Close()
 
 	var article Article
-	var tag pq.StringArray
 	if rows.Next() {
-		err := rows.Scan(&article.Id, &article.Uid, &article.Title, &article.Cover, &tag, &article.Introduce,
-			&article.Content, &article.State, &article.CreatedAt, &article.UpdatedAt, &article.DeletedAt, &article.ViewNum,
+		err := rows.Scan(&article.Id, &article.Uid, &article.Title, &article.Cover, &article.SubTitle,
+			&article.Content, &article.State, &article.CreatedAt, &article.UpdatedAt, &article.ViewNum,
 			&article.CmtNum, &article.LikeNum)
 		if err != nil {
 			return Article{}, err
 		}
-		article.Tag = tag
 	}
 	return article, nil
 }
 
-func QueryArticles(tx *sqlog.DB, condition string, uid uint64) ([]Article, error) {
-	rows, err := PSql.Select("a.id,a.uid,a.title,a.cover,a.tag,a.introduce,a.state,a.created_at",
-		"a.updated_at,a.deleted_at,e.view_num,e.cmt_num,e.like_num").
+// 获取文章列表
+func QueryArticles(tx *sqlog.DB, condition string, uid int, draft bool) ([]Article, error) {
+	rows, err := PSql.Select("a.id,a.uid,a.title,a.cover,a.sub_title,a.state,a.created_at",
+		"a.updated_at,e.view_num,e.cmt_num,e.like_num").
 		From("article a").
 		LeftJoin("article_ex e on a.id=e.aid").
 		WhereExpr(
 			sqlex.IF{Condition: condition != "", Sq: sqlex.Or{
-				sqlex.Like{"title": condition},
-				sqlex.Like{"author": condition},
-				sqlex.Like{"content": condition},
+				sqlex.Like{"a.title": condition},
+				sqlex.Like{"a.content": condition},
 			}},
-			sqlex.IF{Condition: uid != 0, Sq: sqlex.Eq{"uid": uid}},
+			sqlex.IF{Condition: uid != 0, Sq: sqlex.Eq{"a.uid": uid}},
+			sqlex.IF{Condition: !draft, Sq: sqlex.NotEq{"a.state": Draft}},
 		).
-		Where("deleted_at is null").
-		OrderBy("id desc").
+		OrderBy("a.id desc").
 		RunWith(tx).Query()
 	if err != nil {
 		return nil, err
@@ -159,24 +136,23 @@ func QueryArticles(tx *sqlog.DB, condition string, uid uint64) ([]Article, error
 	defer rows.Close()
 
 	var articles []Article
-	var tag pq.StringArray
-	if rows.Next() {
+	for rows.Next() {
 		var article Article
-		err := rows.Scan(&article.Id, &article.Uid, &article.Title, &article.Cover, &tag, &article.Introduce,
-			&article.State, &article.CreatedAt, &article.UpdatedAt, &article.DeletedAt, &article.ViewNum,
+		err := rows.Scan(&article.Id, &article.Uid, &article.Title, &article.Cover, &article.SubTitle,
+			&article.State, &article.CreatedAt, &article.UpdatedAt, &article.ViewNum,
 			&article.CmtNum, &article.LikeNum)
 		if err != nil {
 			return nil, err
 		}
-		article.Tag = tag
 		articles = append(articles, article)
 	}
 	return articles, nil
 }
 
-func DeleteArticle(tx *sqlog.DB, id uint64) error {
-	result, err := PSql.Update("article").
-		Set("deleted_at", time.Now()).
+// 删除文章
+func DeleteArticle(tx *sqlog.DB, id int) error {
+	result, err := PSql.Delete("article").
+		Where(sqlex.Eq{"id": id}).
 		RunWith(tx).Exec()
 
 	if err != nil {

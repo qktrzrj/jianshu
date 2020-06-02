@@ -26,7 +26,7 @@ const (
 )
 
 type User struct {
-	Id        uint64         `graphql:"id"`
+	Id        int            `graphql:"id"`
 	Username  string         `graphql:"username"`
 	Email     string         `graphql:"email"`
 	Password  string         `graphql:"-"`
@@ -37,43 +37,31 @@ type User struct {
 	Root      bool           `graphql:"root"`
 	CreatedAt time.Time      `graphql:"createdAt"`
 	UpdatedAt time.Time      `graphql:"updatedAt"`
-	DeletedAt sql.NullTime   `graphql:"deletedAt"`
 	Count     UserCount      `graphql:"-"`
 }
 
 type UserCount struct {
-	Uid        uint64       `graphql:"-"`
-	FansNum    int          `graphql:"fansNum"`
-	FollowNum  int          `graphql:"followNum"`
-	ArticleNum int          `graphql:"articleNum"`
-	Words      int          `graphql:"words"`
-	LikeNum    int          `graphql:"likeNum"`
-	CreatedAt  time.Time    `graphql:"-"`
-	UpdatedAt  time.Time    `graphql:"-"`
-	DeletedAt  sql.NullTime `graphql:"-"`
+	FansNum    int `graphql:"fansNum"`
+	FollowNum  int `graphql:"followNum"`
+	ArticleNum int `graphql:"articleNum"`
+	Words      int `graphql:"words"`
+	LikeNum    int `graphql:"likeNum"`
 }
 
-type UserFollow struct {
-	Id        uint64       `graphql:"-"`
-	Uid       uint64       `graphql:"-"`
-	Fuid      uint64       `graphql:"-"`
-	CreatedAt time.Time    `graphql:"createdAt"`
-	UpdatedAt time.Time    `graphql:"updatedAt"`
-	DeletedAt sql.NullTime `graphql:"deletedAt"`
-}
-
-func GetUser(tx *sqlog.DB, id uint64, username, email string) (User, error) {
-	rows, err := PSql.Select("id,username,email,password,avatar,gender,introduce,state,root,created_at,updated_at,deleted_at").
-		From(`"user"`).
+// 获取用户基本信息
+// 根据id，username和email查询，若无过滤条件，默认取第一条
+func GetUser(tx *sqlog.DB, id int, username, email string) (User, error) {
+	rows, err := PSql.Select("id,username,email,password,avatar,gender,introduce,state,root,created_at,updated_at").
+		From("`user`").
+		Where("1=1").
 		WhereExpr(
-			sqlex.IF{id != 0, sqlex.Eq{"id": id}},
-		).
-		WhereExpr(
+			sqlex.IF{Condition: id != 0, Sq: sqlex.Eq{"id": id}},
 			sqlex.Or{
-				sqlex.IF{username != "", sqlex.Eq{"username": username}},
-				sqlex.IF{email != "", sqlex.Eq{"email": email}},
+				sqlex.IF{Condition: username != "", Sq: sqlex.Eq{"username": username}},
+				sqlex.IF{Condition: email != "", Sq: sqlex.Eq{"email": email}},
 			},
 		).
+		Limit(1).
 		RunWith(tx).Query()
 	if err != nil {
 		return User{}, err
@@ -81,8 +69,8 @@ func GetUser(tx *sqlog.DB, id uint64, username, email string) (User, error) {
 	var user User
 	defer rows.Close()
 	if rows.Next() {
-		err := rows.Scan(&user.Id, &user.Username, &user.Email, &user.Password, &user.Avatar, &user.Gender, &user.Introduce, &user.State,
-			&user.Root, &user.CreatedAt, &user.UpdatedAt, &user.DeletedAt)
+		err := rows.Scan(&user.Id, &user.Username, &user.Email, &user.Password, &user.Avatar, &user.Gender,
+			&user.Introduce, &user.State, &user.Root, &user.CreatedAt, &user.UpdatedAt)
 		if err != nil {
 			return user, err
 		}
@@ -90,10 +78,11 @@ func GetUser(tx *sqlog.DB, id uint64, username, email string) (User, error) {
 	return user, nil
 }
 
-func GetUserCount(tx *sqlog.DB, id uint64) (UserCount, error) {
+// 获取用户扩展信息
+func GetUserCount(tx *sqlog.DB, id int) (UserCount, error) {
 	rows, err := PSql.Select("fans_num,follow_num,article_num,words,like_num").
 		From("user_count").
-		Where("uid=$1", id).
+		Where(sqlex.Eq{"uid": id}).
 		RunWith(tx).Query()
 	if err != nil {
 		return UserCount{}, err
@@ -109,18 +98,19 @@ func GetUserCount(tx *sqlog.DB, id uint64) (UserCount, error) {
 	return c, nil
 }
 
-func GetUserFollower(tx *sqlog.DB, id uint64) ([]uint64, error) {
+// 获取用户粉丝列表
+func GetUserFollower(tx *sqlog.DB, id int) ([]int, error) {
 	rows, err := PSql.Select("fuid").
 		From("user_follow").
-		Where("uid=$1", id).
+		Where(sqlex.Eq{"uid": id}).
 		RunWith(tx).Query()
 	if err != nil {
 		return nil, err
 	}
-	var fs []uint64
+	var fs []int
 	defer rows.Close()
 	for rows.Next() {
-		var f uint64
+		var f int
 		err := rows.Scan(&f)
 		if err != nil {
 			return nil, err
@@ -130,18 +120,19 @@ func GetUserFollower(tx *sqlog.DB, id uint64) ([]uint64, error) {
 	return fs, nil
 }
 
-func GetFollowUser(tx *sqlog.DB, id uint64) ([]uint64, error) {
+// 获取用户关注列表
+func GetFollowUser(tx *sqlog.DB, id int) ([]int, error) {
 	rows, err := PSql.Select("uid").
 		From("user_follow").
-		Where("fuid=$1", id).
+		Where(sqlex.Eq{"fuid": id}).
 		RunWith(tx).Query()
 	if err != nil {
 		return nil, err
 	}
-	var fs []uint64
+	var fs []int
 	defer rows.Close()
 	for rows.Next() {
-		var f uint64
+		var f int
 		err := rows.Scan(&f)
 		if err != nil {
 			return nil, err
@@ -151,50 +142,34 @@ func GetFollowUser(tx *sqlog.DB, id uint64) ([]uint64, error) {
 	return fs, nil
 }
 
-type UserArg struct {
-	Username string `graphql:"username" validate:"min=6,max=16"`
-	Email    string `graphql:"email" validate:"email"`
-	Password string `graphql:"password" validate:"min=8"`
-	Avatar   string `graphql:"-"`
-}
-
-func InsertUser(tx *sqlog.DB, arg UserArg) (uint64, error) {
-	id, err := IdFetcher.NextID()
-	if err != nil {
-		return id, err
-	}
-	result, err := PSql.Insert(`"user"`).
-		Columns("id,username,email,password,avatar").
-		Values(id, arg.Username, arg.Email, arg.Password, arg.Avatar).
+// 新增用户
+func InsertUser(tx *sqlog.DB, arg map[string]interface{}) (int, error) {
+	// 新增用户基本信息
+	result, err := PSql.Insert("`user`").
+		SetMap(arg).
 		RunWith(tx).Exec()
 	if err != nil {
-		return id, err
+		return 0, err
+	}
+	id, _ := result.LastInsertId()
+	if id == 0 {
+		return 0, fmt.Errorf("保存用户信息失败")
+	}
+	// 用户拓展信息
+	result, err = PSql.Insert("user_count").Columns("uid").Values(id).RunWith(tx).Exec()
+	if err != nil {
+		return 0, err
 	}
 	affected, _ := result.RowsAffected()
 	if affected == 0 {
-		return id, fmt.Errorf("保存用户信息失败")
+		return 0, fmt.Errorf("保存用户信息失败")
 	}
-	return id, nil
+	return int(id), nil
 }
 
-func InsertUserCount(tx *sqlog.DB, id uint64) error {
-	result, err := PSql.Insert("user_count").Columns("uid").Values(id).RunWith(tx).Exec()
-	if err != nil {
-		return err
-	}
-	affected, _ := result.RowsAffected()
-	if affected == 0 {
-		return fmt.Errorf("保存用户信息失败")
-	}
-	return nil
-}
-
-func InsertUserFollow(tx *sqlog.DB, uid uint64, fuid uint64) error {
-	id, err := IdFetcher.NextID()
-	if err != nil {
-		return err
-	}
-	result, err := PSql.Insert("user_follow").Columns("id,uid,fuid").Values(id, uid, fuid).RunWith(tx).Exec()
+// 关注
+func InsertUserFollow(tx *sqlog.DB, uid, fuid int) error {
+	result, err := PSql.Insert("user_follow").Columns("uid,fuid").Values(uid, fuid).RunWith(tx).Exec()
 	if err != nil {
 		return err
 	}
@@ -205,9 +180,9 @@ func InsertUserFollow(tx *sqlog.DB, uid uint64, fuid uint64) error {
 	return nil
 }
 
-func DeleteUserFollow(tx *sqlog.DB, id uint64, fuid uint64) error {
-	result, err := PSql.Update("user_follow").
-		Set("deleted_at", time.Now()).
+// 取消关注
+func DeleteUserFollow(tx *sqlog.DB, id, fuid int) error {
+	result, err := PSql.Delete("user_follow").
 		Where(sqlex.Eq{"uid": id, "fuid": fuid}).
 		RunWith(tx).Exec()
 
@@ -219,4 +194,34 @@ func DeleteUserFollow(tx *sqlog.DB, id uint64, fuid uint64) error {
 		return fmt.Errorf("取消关注失败")
 	}
 	return nil
+}
+
+// 修改用户基本信息
+func UpdateUser(tx *sqlog.DB, id int, setMap map[string]interface{}) error {
+	_, err := PSql.Update("`user`").
+		SetMap(setMap).
+		Where(sqlex.Eq{"id": id}).
+		RunWith(tx).Exec()
+
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// 用户关系
+func IsFollow(tx *sqlog.DB, uid, fuid int) (bool, error) {
+	row := PSql.Select("count(uid)").
+		From("user_follow").
+		Where(sqlex.Eq{"uid": uid, "fuid": fuid}).
+		RunWith(tx).QueryRow()
+	var count int
+	err := row.Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	if count == 0 {
+		return false, nil
+	}
+	return true, nil
 }

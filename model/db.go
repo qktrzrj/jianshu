@@ -2,14 +2,13 @@ package model
 
 import (
 	"fmt"
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
-	_ "github.com/lib/pq"
 	"github.com/rs/zerolog"
 	"github.com/shyptr/jianshu/setting"
 	"github.com/shyptr/jianshu/util"
 	"github.com/shyptr/plugins/sqlog"
 	"github.com/shyptr/sqlex"
-	"github.com/sony/sonyflake"
 	"sync"
 	"time"
 )
@@ -33,25 +32,18 @@ func (s sqloger) Show() bool {
 }
 
 var (
-	DB        *sqlog.DB
-	PSql      sqlex.StatementBuilderType
-	IdFetcher *sonyflake.Sonyflake
-	once      sync.Once
+	DB   *sqlog.DB
+	PSql sqlex.StatementBuilderType
+	once sync.Once
 )
 
 func Init() {
 	once.Do(func() {
 		s := setting.GetStorage()
-		pi := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
-			s.GetHost(), s.GetPort(), s.GetUsername(), s.GetPassword(), s.GetDBName())
-		db := sqlx.MustOpen("postgres", pi)
+		pi := fmt.Sprintf("%s:%s@(%s:%d)/%s?parseTime=true",
+			s.GetUsername(), s.GetPassword(), s.GetHost(), s.GetPort(), s.GetDBName())
+		db := sqlx.MustOpen("mysql", pi)
 		DB = &sqlog.DB{Runner: db, Logger: sqloger{logger: util.GetLogger()}}
-		PSql = sqlex.StatementBuilder.PlaceholderFormat(sqlex.Dollar)
-		IdFetcher = sonyflake.NewSonyflake(sonyflake.Settings{
-			StartTime: time.Date(2020, 4, 1, 0, 0, 0, 0, time.Local),
-			MachineID: func() (uint16, error) {
-				return 0, nil
-			},
-		})
+		PSql = sqlex.StatementBuilder
 	})
 }

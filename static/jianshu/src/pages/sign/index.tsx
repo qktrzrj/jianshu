@@ -3,11 +3,15 @@ import "./sign.less"
 import {Button, Checkbox, Form, Input, Layout, Tabs, Tooltip, message} from "antd";
 import {RouteComponentProps} from "react-router-dom";
 import {UserOutlined, LockOutlined, MailOutlined} from '@ant-design/icons';
-import {useLazyQuery, useMutation} from "@apollo/react-hooks";
-import {CheckEmailGQL, CheckUsernameGQL, SignInGQL, SignUpGQL} from '../../component/query/query'
 import {IconFont} from "../../component/IconFont";
 import NProgress from 'nprogress';
 import 'nprogress/nprogress.css';
+import {
+    useSignInMutation,
+    useSignUpMutation,
+    useValidEmailLazyQuery,
+    useValidUsernameLazyQuery
+} from "../../generated/graphql";
 
 const {Header, Content} = Layout;
 const {TabPane} = Tabs;
@@ -20,6 +24,11 @@ export default function Sign(props: RouteComponentProps) {
     const [path, setPath] = useState(props.location.pathname);
     useEffect(() => {
         setPath(props.location.pathname)
+        if (props.location.pathname === '/signIn') {
+            document.title = '登录'
+        } else {
+            document.title = '注册'
+        }
     }, [props.location.pathname]);
     return (
         <Layout className="sign">
@@ -53,10 +62,11 @@ const LoginForm = (props: RouteComponentProps) => {
 
     const [form] = Form.useForm();
 
-    const [signIn] = useMutation(SignInGQL);
+
+    const [signIn] = useSignInMutation();
 
     const onFinish = (values: any) => {
-        if (values.rememberme===undefined){
+        if (values.rememberme === undefined) {
             values.rememberme = false
         }
         NProgress.start()
@@ -112,15 +122,13 @@ const RegisterForm = (props: RouteComponentProps) => {
     const [uv, setuv] = useState(false);
     const [ev, setev] = useState(false);
 
-    const [signUp] = useMutation(SignUpGQL);
+    const [signUp] = useSignUpMutation();
 
     const onFinish = (values: any) => {
         NProgress.start()
         signUp({variables: values}).then(r => {
-
             if (r.errors) {
-                let err = r.errors.join("\n");
-                message.error(err);
+                message.error(r.errors + '');
                 return
             }
             if (r.data) {
@@ -132,21 +140,35 @@ const RegisterForm = (props: RouteComponentProps) => {
         NProgress.done()
     };
 
-    const [checkUsername, {error: error1}] = useLazyQuery(CheckUsernameGQL);
+    const [checkUsername, {error: error1}] = useValidUsernameLazyQuery();
+    const [checkEmail, {error: error2}] = useValidEmailLazyQuery();
 
-    const [checkEmail, {error: error2}] = useLazyQuery(CheckEmailGQL);
+    useEffect(() => {
+        if (error1 && error1.message !== "") {
+            setuv(true);
+            return
+        }
+        if (!error1) {
+            setuv(false)
+        }
+    }, [error1])
+
+    useEffect(() => {
+        if (error2 && error2.message !== "") {
+            setev(true);
+            return
+        }
+        if (!error2) {
+            setev(false)
+        }
+    }, [error2])
 
     const validateUsername = () => {
         let username = form.getFieldValue("username");
         if (username) {
             checkUsername({variables: {username: username}});
-            if (error1 && error1.message !== "") {
-                setuv(true);
-                return
-            }
         }
         setuv(false);
-
     };
 
     const validateEmail = () => {
@@ -163,44 +185,43 @@ const RegisterForm = (props: RouteComponentProps) => {
 
     return (
         <Form form={form} style={{paddingTop: 10}} name="register" scrollToFirstError onFinish={onFinish}>
+            <Tooltip visible={uv} getPopupContainer={() => document.body}
+                     placement={"right"} className="tooltip-inner"
+                     overlay={error1?.message !== "" &&
+                     <div>
+                         <IconFont type="icon-gantanhao"/><span>  {error1?.message}</span>
+                     </div>}
+            >
+                <Form.Item name="username" className="input-prepend restyle" rules={[
+                    {max: 20, message: '用户名长度不能多于20个字符!'},
+                    {min: 6, message: '用户名长度最低为8个字符!'},
+                    {required: true, message: '请输入用户名'},
+                ]}>
+                    <Input onBlur={validateUsername}
+                           onFocus={() => setuv(false)}
+                           size={"large"} prefix={<UserOutlined/>}
+                           placeholder="设置你的用户名"
+                    />
+                </Form.Item>
+            </Tooltip>
+            <Tooltip visible={ev} getPopupContainer={() => document.body} placement={"right"}
+                     overlay={error2 && error2.message !== "" &&
+                     <div className="tooltip-inner">
+                         <IconFont type="icon-gantanhao"/><span>  {error2.message}</span>
+                     </div>}
+            >
+                <Form.Item name="email" className="input-prepend restyle" rules={[
+                    {type: 'email', message: "请输入正确的邮箱地址"},
+                    {required: true, message: '请输入你的邮箱地址'},
+                ]}>
 
-            <Form.Item name="username" className="input-prepend restyle" rules={[
-                {max: 20, message: '用户名长度不能多于20个字符!'},
-                {min: 6, message: '用户名长度最低为8个字符!'},
-                {required: true, message: '请输入用户名'},
-            ]}>
-                <Input onBlur={validateUsername}
-                       onFocus={() => setuv(false)}
-                       size={"large"} prefix={<UserOutlined/>}
-                       placeholder="设置你的用户名"
-                       suffix={
-                           <Tooltip visible={uv} getPopupContainer={() => document.body}
-                                    placement={"right"} className="tooltip-inner"
-                                    overlay={error1 && error1.message !== "" &&
-                                    <div>
-                                        <IconFont type="icon-gantanhao"/><span>  {error1.message}</span>
-                                    </div>}
-                           />}
-                />
-            </Form.Item>
-            <Form.Item name="email" className="input-prepend restyle" rules={[
-                {type: 'email', message: "请输入正确的邮箱地址"},
-                {required: true, message: '请输入你的邮箱地址'},
-            ]}>
-
-                <Input onBlur={validateEmail}
-                       onFocus={() => setev(false)}
-                       size={"large"} prefix={<MailOutlined/>}
-                       placeholder="设置邮箱地址"
-                       suffix={
-                           <Tooltip visible={ev} getPopupContainer={() => document.body} placement={"right"}
-                                    overlay={error2 && error2.message !== "" &&
-                                    <div className="tooltip-inner">
-                                        <IconFont type="icon-gantanhao"/><span>  {error2.message}</span>
-                                    </div>}
-                           />}
-                />
-            </Form.Item>
+                    <Input onBlur={validateEmail}
+                           onFocus={() => setev(false)}
+                           size={"large"} prefix={<MailOutlined/>}
+                           placeholder="设置邮箱地址"
+                    />
+                </Form.Item>
+            </Tooltip>
             <Form.Item name="password" className="input-prepend" rules={[
                 {max: 20, message: '密码长度不能多于20个字符'},
                 {min: 8, message: '密码长度不能少于8个字符'},

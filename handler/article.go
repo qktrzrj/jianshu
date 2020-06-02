@@ -10,11 +10,13 @@ import (
 
 func registerArticle(schema *schemabuilder.Schema) {
 	// 枚举
-	schema.Enum("ArticleState", model.ArticleState(0), map[string]model.ArticleState{
-		"Unaudited": model.Unaudited,
-		"Online":    model.Online,
-		"Offline":   model.Offline,
-		"Deleted":   model.Deleted,
+	schema.Enum("ArticleState", model.ArticleState(0), map[string]schemabuilder.DescField{
+		"Draft":     {model.Draft, "草稿"},
+		"Unaudited": {model.Unaudited, "未审核"},
+		"Online":    {model.Online, "已发布"},
+		"Offline":   {model.Offline, "已下线"},
+		"Deleted":   {model.Deleted, "已删除"},
+		"Updated":   {model.Updated, "更新未重新发布"},
 	})
 
 	article := schema.Object("Article", model.Article{})
@@ -45,6 +47,8 @@ func registerArticle(schema *schemabuilder.Schema) {
 	mutation.FieldFunc("DraftArticle", resolve.ArticleResolver.Draft, middleware.BasicAuth(), middleware.LoginNeed())
 	// 发布
 	mutation.FieldFunc("NewArticle", resolve.ArticleResolver.NewArticle, middleware.BasicAuth(), middleware.LoginNeed())
+	// 修改
+	mutation.FieldFunc("UpdateArticle", resolve.ArticleResolver.UpdateArticle, middleware.BasicAuth(), middleware.LoginNeed())
 	// 删除
 	mutation.FieldFunc("DeleteArticle", resolve.ArticleResolver.Delete, middleware.BasicAuth(), middleware.LoginNeed())
 }

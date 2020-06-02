@@ -5,29 +5,40 @@ import (
 	"fmt"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/shyptr/jianshu/setting"
-	"strconv"
 	"time"
 )
 
-func GeneraToken(id uint64, age time.Duration) (string, error) {
-	claims := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.StandardClaims{
-		ExpiresAt: int64(age),
-		Id:        fmt.Sprintf("%d", id),
+type UserClaims struct {
+	jwt.StandardClaims
+	Id    int
+	Root  bool
+	State int
+}
+
+func GeneraToken(id int, root bool, state int, age time.Duration) (string, error) {
+	claims := jwt.NewWithClaims(jwt.SigningMethodHS256, UserClaims{
+		StandardClaims: jwt.StandardClaims{
+			ExpiresAt: int64(age),
+			Id:        fmt.Sprintf("%d", id),
+		},
+		Id:    id,
+		Root:  root,
+		State: state,
 	})
 	return claims.SignedString([]byte(setting.GetJwtSecret()))
 }
 
-func ParseToken(token string) (uint64, error) {
-	claims, err := jwt.ParseWithClaims(token, &jwt.StandardClaims{}, func(*jwt.Token) (interface{}, error) {
+func ParseToken(token string) (UserClaims, error) {
+	claims, err := jwt.ParseWithClaims(token, &UserClaims{}, func(*jwt.Token) (interface{}, error) {
 		return []byte(setting.GetJwtSecret()), nil
 	})
 	if err != nil {
-		return 0, err
+		return UserClaims{}, err
 	}
-	standardClaims := claims.Claims.(*jwt.StandardClaims)
-	expiresAt := standardClaims.VerifyExpiresAt(time.Now().Unix(), true)
+	userClaims := claims.Claims.(*UserClaims)
+	expiresAt := userClaims.VerifyExpiresAt(time.Now().Unix(), true)
 	if !expiresAt {
-		return 0, errors.New("token失效")
+		return UserClaims{}, errors.New("token失效")
 	}
-	return strconv.ParseUint(standardClaims.Id, 10, 0)
+	return *userClaims, nil
 }

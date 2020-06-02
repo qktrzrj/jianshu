@@ -1,6 +1,7 @@
 package setting
 
 import (
+	"github.com/fsnotify/fsnotify"
 	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/viper"
 	"log"
@@ -85,13 +86,11 @@ func Init() {
 		if err != nil {
 			log.Fatalf("读取数据库配置信息出错：%s", err)
 		}
-		//// 监控JwtSecret
-		//go func() {
-		//	for {
-		//		viper.WatchConfig()
-		//		jwtSecret = viper.GetString("app.jwt_secret")
-		//	}
-		//}()
+		// 监控JwtSecret
+		viper.WatchConfig()
+		viper.OnConfigChange(func(fsnotify.Event) {
+			jwtSecret = viper.GetString("app.jwt_secret")
+		})
 	})
 }
 

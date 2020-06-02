@@ -15,11 +15,10 @@ import (
 
 func CORS() graphql.HandlerFunc {
 	return func(c *graphql.Context) {
-		c.Writer.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
-		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type,X-Requested-With")
+		c.Writer.Header().Add("Access-Control-Allow-Origin", "http://localhost:3000")
+		c.Writer.Header().Add("Access-Control-Allow-Credentials", "true")
+		c.Writer.Header().Add("Access-Control-Allow-Headers", "Content-Type,X-Requested-With")
 		if c.Request.Method == http.MethodOptions {
-			c.Writer.WriteHeader(http.StatusOK)
 			return
 		}
 		c.Next()
@@ -96,12 +95,14 @@ func BasicAuth() schemabuilder.ExecuteFunc {
 		}
 		token := cookie.Value
 		if token != "" {
-			id, err := util.ParseToken(token)
+			user, err := util.ParseToken(token)
 			if err != nil {
 				logger.Error().AnErr("解析token失败", err).Send()
 				return errors.New("解析token失败")
 			}
-			c.Set("userId", id)
+			c.Set("userId", user.Id)
+			c.Set("root", user.Root)
+			c.Set("userState", user.State)
 		}
 		return nil
 	}

@@ -29,21 +29,23 @@ func registerUser(schema *schemabuilder.Schema) {
 	user.FieldFunc("ArticleNum", func(u model.User) int { return u.Count.ArticleNum })
 	user.FieldFunc("Words", func(u model.User) int { return u.Count.Words })
 	user.FieldFunc("LikeNum", func(u model.User) int { return u.Count.LikeNum })
-	// 粉丝列表
-	user.FieldFunc("Fans", resolve.UserResolver.Followers)
-	// 关注列表
-	user.FieldFunc("Followed", resolve.UserResolver.Follows)
 
 	query := schema.Query()
 	// 获取用户信息
 	query.FieldFunc("User", resolve.UserResolver.User)
 	// 获取当前用户信息
 	query.FieldFunc("CurrentUser", func(ctx context.Context) (model.User, error) {
-		return resolve.UserResolver.User(ctx, resolve.IdArgs{Id: ctx.Value("userId").(uint64)})
+		return resolve.UserResolver.User(ctx, resolve.IdArgs{Id: ctx.Value("userId").(int)})
 	}, middleware.BasicAuth(), middleware.LoginNeed())
 	// 校验用户名/邮箱唯一性
 	query.FieldFunc("ValidUsername", resolve.UserResolver.ValidUsername)
 	query.FieldFunc("ValidEmail", resolve.UserResolver.ValidEmail)
+	// 粉丝列表
+	query.FieldFunc("Fans", resolve.UserResolver.Followers)
+	// 关注列表
+	query.FieldFunc("Followed", resolve.UserResolver.Follows)
+	// 用户关系
+	query.FieldFunc("IsFollow", resolve.UserResolver.IsFollow, middleware.BasicAuth(), middleware.LoginNeed())
 
 	mutation := schema.Mutation()
 	// 注册
@@ -56,4 +58,7 @@ func registerUser(schema *schemabuilder.Schema) {
 	mutation.FieldFunc("Follow", resolve.UserResolver.Follow, middleware.BasicAuth(), middleware.LoginNeed())
 	// 取消关注
 	mutation.FieldFunc("UnFollow", resolve.UserResolver.CancelFollow, middleware.BasicAuth(), middleware.LoginNeed())
+	// 修改用户信息
+	mutation.FieldFunc("UpdateUserInfo", resolve.UserResolver.UpdateUserInfo, middleware.BasicAuth(), middleware.LoginNeed())
+
 }

@@ -14,7 +14,6 @@ import (
 	"github.com/shyptr/plugins/sqlog"
 	"reflect"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -46,7 +45,7 @@ func (r articleResolver) PutHots(ctx context.Context, article model.Article) {
 		}).Result()
 		logger := ctx.Value("logger").(zerolog.Logger)
 		if err != nil {
-			logger.Error().Caller().AnErr("热门文章发送redis失败", err).Uint64("文章ID", article.Id).Send()
+			logger.Error().Caller().AnErr("热门文章发送redis失败", err).Int("文章ID", article.Id).Send()
 			// TODO: 发送运维提醒邮件
 		}
 	}
@@ -145,13 +144,13 @@ func (r articleResolver) Hots(ctx context.Context, arg struct {
 
 	page.Result = make([]model.Article, len(ids))
 	for index, idStr := range ids {
-		id, err := strconv.ParseUint(idStr, 10, 64)
+		id, err := strconv.ParseInt(idStr, 10, 64)
 		if err != nil {
 			logger.Error().Caller().AnErr("解析文章id出错", err).Send()
 			return nil, errors.New("查询热门文章出错")
 		}
 
-		article, err := model.QueryArticle(tx, id)
+		article, err := model.QueryArticle(tx, int(id))
 		if err != nil {
 			logger.Error().Caller().AnErr("查询文章出错", err).Send()
 			return nil, errors.New("查询热门文章出错")
@@ -163,10 +162,11 @@ func (r articleResolver) Hots(ctx context.Context, arg struct {
 }
 
 // 查询文章
-// 根据文章名,作者名,标签,文章内容,发布时间进行查询
+// 根据文章名,作者名,文章内容进行查询
 // 当所有查询条件为空时，默认查询最新文章
 func (r articleResolver) Articles(ctx context.Context, arg struct {
 	Condition string `graphql:"condition;;null"`
+	Uid       int    `graphql:"uid;;null"`
 }) ([]model.Article, error) {
 	logger := ctx.Value("logger").(zerolog.Logger)
 	tx := ctx.Value("tx").(*sqlog.DB)
@@ -187,6 +187,11 @@ func (r articleResolver) Articles(ctx context.Context, arg struct {
 		Do(ctx)
 	if err != nil {
 		logger.Error().Caller().AnErr("从es查询文章失败", err).Send()
+		if arg.Condition == "*" {
+			arg.Condition = ""
+		} else {
+			arg.Condition = "%" + arg.Condition + "%"
+		}
 		goto DB
 	}
 	articles = make([]model.Article, searchResult.TotalHits())
@@ -201,7 +206,7 @@ func (r articleResolver) Articles(ctx context.Context, arg struct {
 	}
 	goto RS
 DB:
-	articles, err = model.QueryArticles(tx, arg.Condition, 0)
+	articles, err = model.QueryArticles(tx, arg.Condition, arg.Uid, false)
 	if err != nil {
 		logger.Error().Caller().AnErr("查询文章列表失败", err).Send()
 		return nil, errors.New("获取文章列表失败")
@@ -215,7 +220,7 @@ func (r articleResolver) CurArticles(ctx context.Context) ([]model.Article, erro
 	logger := ctx.Value("logger").(zerolog.Logger)
 	tx := ctx.Value("tx").(*sqlog.DB)
 
-	articles, err := model.QueryArticles(tx, "", 0)
+	articles, err := model.QueryArticles(tx, "", ctx.Value("userId").(int), true)
 	if err != nil {
 		logger.Error().Caller().AnErr("查询文章列表失败", err).Send()
 		return nil, errors.New("获取文章列表失败")
@@ -224,9 +229,7 @@ func (r articleResolver) CurArticles(ctx context.Context) ([]model.Article, erro
 }
 
 // 获取文章详细信息
-func (r articleResolver) Article(ctx context.Context, arg struct {
-	Id uint64 `graphql:"id"`
-}) (model.Article, error) {
+func (r articleResolver) Article(ctx context.Context, arg IdArgs) (model.Article, error) {
 	logger := ctx.Value("logger").(zerolog.Logger)
 	tx := ctx.Value("tx").(*sqlog.DB)
 
@@ -240,89 +243,73 @@ func (r articleResolver) Article(ctx context.Context, arg struct {
 }
 
 // 草稿
-func (r articleResolver) Draft(ctx context.Context, arg model.ArticleDraftArg) (uint64, error) {
+func (r articleResolver) Draft(ctx context.Context, arg struct {
+	Title string `graphql:"title"`
+}) (model.Article, error) {
 	logger := ctx.Value("logger").(zerolog.Logger)
 	tx := ctx.Value("tx").(*sqlog.DB)
 
-	var insert bool
-	// 若无Id，生成Id
-	if arg.Id == 0 {
-		id, err := model.IdFetcher.NextID()
-		if err != nil {
-			logger.Error().Caller().AnErr("生成文章id失败", err).Send()
-			return 0, errors.New("草稿保存失败")
-		}
-		arg.Id = id
-		insert = true
+	uid := ctx.Value("userId").(int)
+	id, err := model.InsertArticle(tx, map[string]interface{}{
+		"title":   arg.Title,
+		"uid":     uid,
+		"content": "",
+		"state":   model.Draft,
+	})
+	if err != nil {
+		logger.Error().Caller().AnErr("保存文章失败", err).Send()
+		return model.Article{}, errors.New("草稿保存失败")
 	}
 
-	if insert {
-		uid := ctx.Value("userId").(uint64)
-		if err := model.InsertArticle(tx, arg, uid, model.Draft); err != nil {
-			logger.Error().Caller().AnErr("保存文章失败", err).Send()
-			return 0, errors.New("草稿保存失败")
-		}
-	} else {
-		if err := model.UpdateArticle(tx, arg, model.Draft); err != nil {
-			logger.Error().Caller().AnErr("修改文章失败", err).Send()
-			return 0, errors.New("草稿保存失败")
-		}
+	article, err := model.QueryArticle(tx, id)
+	if err != nil {
+		logger.Error().Caller().AnErr("查询文章失败", err).Send()
+		return model.Article{}, errors.New("草稿保存失败")
 	}
 
-	return arg.Id, nil
+	return article, nil
 }
 
 // 发布
-func (r articleResolver) NewArticle(ctx context.Context, arg model.ArticleArg) (model.Article, error) {
+func (r articleResolver) NewArticle(ctx context.Context, arg IdArgs) (model.Article, error) {
 	logger := ctx.Value("logger").(zerolog.Logger)
 	tx := ctx.Value("tx").(*sqlog.DB)
 
-	var insert bool
-	// 若无Id，生成Id
-	if arg.Id == 0 {
-		id, err := model.IdFetcher.NextID()
-		if err != nil {
-			logger.Error().Caller().AnErr("生成文章id失败", err).Send()
-			return model.Article{}, errors.New("文章发布失败")
-		}
-		arg.Id = id
-		insert = true
-	}
+	uid := ctx.Value("userId").(int)
 
-	introduce := make([]byte, 255, 255)
-	reader := strings.NewReader(arg.Content)
-	read, _ := reader.Read(introduce)
-
-	a := model.ArticleDraftArg{
-		Id:        arg.Id,
-		Title:     arg.Title,
-		Cover:     arg.Cover,
-		Tag:       arg.Tag,
-		Content:   arg.Content,
-		Introduce: string(introduce[:read]),
-	}
-
-	uid := ctx.Value("userId").(uint64)
-	if insert {
-		if err := model.InsertArticle(tx, a, uid, model.Unaudited); err != nil {
-			logger.Error().Caller().AnErr("保存文章失败", err).Send()
-			return model.Article{}, errors.New("文章发布失败")
-		}
-	} else {
-		if err := model.UpdateArticle(tx, a, model.Unaudited); err != nil {
-			logger.Error().Caller().AnErr("修改文章失败", err).Send()
-			return model.Article{}, errors.New("文章发布失败")
-		}
-	}
-
+	// 校验文章归属
 	article, err := model.QueryArticle(tx, arg.Id)
 	if err != nil {
 		logger.Error().Caller().AnErr("查询文章失败", err).Send()
 		return model.Article{}, errors.New("文章发布失败")
 	}
+	if article.Uid != uid {
+		return model.Article{}, errors.New("你无权发布此文章")
+	}
+	if article.State == model.Deleted {
+		return model.Article{}, errors.New("该文章已删除，无法发布")
+	}
+
+	if article.SubTitle == "" && article.Content != "" {
+		content := []rune(article.Content)
+		if len(content) > 100 {
+			article.SubTitle = string(content[:100]) + "..."
+		} else {
+			article.SubTitle = article.Content
+		}
+	}
+
+	if err := model.UpdateArticle(tx, arg.Id, map[string]interface{}{
+		"sub_title": article.SubTitle,
+		"state":     model.Unaudited,
+	}); err != nil {
+		logger.Error().Caller().AnErr("修改文章失败", err).Send()
+		return model.Article{}, errors.New("文章发布失败")
+	}
 
 	user, _ := UserResolver.User(ctx, IdArgs{Id: uid})
 	article.Author = user.Username
+	article.State = model.Unaudited
 
 	// 存入es
 	_, err = model.ESClient.Index().
@@ -338,10 +325,67 @@ func (r articleResolver) NewArticle(ctx context.Context, arg model.ArticleArg) (
 	return article, nil
 }
 
+// 更新
+func (r articleResolver) UpdateArticle(ctx context.Context, arg struct {
+	Id       int     `graphql:"id"`
+	Title    string  `graphql:"title;;null"`
+	Cover    string  `graphql:"cover;;null"`
+	SubTitle string  `graphql:"subTitle;;null"`
+	Content  *string `graphql:"content"`
+}) (model.Article, error) {
+	logger := ctx.Value("logger").(zerolog.Logger)
+	tx := ctx.Value("tx").(*sqlog.DB)
+
+	uid := ctx.Value("userId").(int)
+
+	// 校验文章归属
+	article, err := model.QueryArticle(tx, arg.Id)
+	if err != nil {
+		logger.Error().Caller().AnErr("查询文章失败", err).Send()
+		return model.Article{}, errors.New("文章更新失败")
+	}
+	if article.Uid != uid {
+		return model.Article{}, errors.New("你无权更新此文章")
+	}
+
+	state := article.State
+	if article.State != model.Draft {
+		state = model.Updated
+	}
+
+	setMap := map[string]interface{}{
+		"state": state,
+	}
+
+	if arg.Title != "" {
+		setMap["title"] = arg.Title
+	}
+	if arg.Cover != "" {
+		setMap["cover"] = arg.Cover
+	}
+	if arg.SubTitle != "" {
+		setMap["sub_title"] = arg.SubTitle
+	}
+	if arg.Content != nil {
+		setMap["content"] = arg.Content
+	}
+
+	if err := model.UpdateArticle(tx, arg.Id, setMap); err != nil {
+		logger.Error().Caller().AnErr("修改文章失败", err).Send()
+		return model.Article{}, errors.New("修改文章失败")
+	}
+
+	article, err = model.QueryArticle(tx, arg.Id)
+	if err != nil {
+		logger.Error().Caller().AnErr("查询文章失败", err).Send()
+		return model.Article{}, errors.New("修改文章失败")
+	}
+
+	return article, nil
+}
+
 // 删除文章
-func (r articleResolver) Delete(ctx context.Context, arg struct {
-	Id uint64 `graphql:"id"`
-}) error {
+func (r articleResolver) Delete(ctx context.Context, arg IdArgs) error {
 	logger := ctx.Value("logger").(zerolog.Logger)
 	tx := ctx.Value("tx").(*sqlog.DB)
 
@@ -351,13 +395,13 @@ func (r articleResolver) Delete(ctx context.Context, arg struct {
 		logger.Error().Caller().AnErr("校验文章归属失败", err).Send()
 		return errors.New("删除文章失败")
 	}
-	if article.Uid != ctx.Value("userId").(uint64) {
+	if article.Uid != ctx.Value("userId").(int) {
 		return errors.New("删除文章失败,无操作权限")
 	}
 
 	idStr := fmt.Sprintf("%d", arg.Id)
 	result, err := model.RedisClient.ZScore("hots", idStr).Result()
-	if err != nil {
+	if err != nil && err != redis.Nil {
 		logger.Error().Caller().AnErr("查询redis失败", err).Send()
 	}
 	if result > 0 {
@@ -372,7 +416,7 @@ func (r articleResolver) Delete(ctx context.Context, arg struct {
 		Index("article").
 		Id(idStr).
 		Do(ctx)
-	if err != nil {
+	if err != nil && !elastic.IsNotFound(err) {
 		logger.Error().Caller().AnErr("删除es文章数据失败", err).Send()
 		return errors.New("删除文章失败")
 	}

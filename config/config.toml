@@ -5,13 +5,13 @@ jwt_secret = "secure"
 [http]
 port = "8008"
 
-# 存储配置,使用Postgres
+# 存储配置
 [storage]
-user = "admin"
-password = "admin"
+user = "root"
+password = "root"
 host = "localhost"
-port = 5432
-dbname = "postgres"
+port = 3306
+dbname = "ptr"
 
 # redis配置
 [cache]
