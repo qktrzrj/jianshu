@@ -1,5 +1,5 @@
 import {Menu, Row, Input, Dropdown, Avatar, Col, message, Spin} from "antd";
-import React, {Suspense} from "react";
+import React, {Suspense, useState} from "react";
 import {Link, RouteComponentProps} from "react-router-dom";
 import {IconFont} from "../../IconFont";
 import "./right.less"
@@ -20,6 +20,8 @@ interface right {
 export default function Right(props: right) {
 
     const [logout] = useLogoutMutation()
+
+    const [Len, setLen] = useState(240)
 
     const onclick = (param: ClickParam) => {
         NProgress.start()
@@ -60,7 +62,15 @@ export default function Right(props: right) {
             <Row style={{height: "64px", flexFlow: "nowrap"}} className="right" justify="end">
 
                 <Col>
-                    <Search placeholder="搜索" size={"large"} className="search"/>
+                    <Search style={{width: Len}}
+                            onBlur={() => setLen(240)}
+                            onFocus={() => setLen(400)}
+                            placeholder="搜索"
+                            size={"large"}
+                            onSearch={(value) => {
+                                props.Route.history.push('/search', {q: value})
+                            }}
+                            className="search"/>
                 </Col>
 
                 {props.data && props.data.CurrentUser && props.data.CurrentUser.id &&
@@ -83,7 +93,7 @@ export default function Right(props: right) {
                     }>
                         <Avatar style={{top: 10}} size={"large"} src={props.data.CurrentUser.avatar}/>
                     </Dropdown>
-                    <a className="write-btn" href="/writer" target='_blank'>
+                    <a className="write-btn" href='/writer' target='_blank'>
                         <IconFont type="icon-zuozhe"/>写文章
                     </a>
                 </Col>

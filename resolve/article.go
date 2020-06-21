@@ -24,26 +24,30 @@ var ArticleResolver articleResolver
 // TODO: 每天定时维护热门文章列表，
 
 // 将文章推送到热门
-func (r articleResolver) PutHots(ctx context.Context, article model.Article) {
+func (r articleResolver) PutHots(ctx context.Context, articleId int) {
+	logger := ctx.Value("logger").(zerolog.Logger)
+	// 获取文章信息
+	article, err := model.QueryArticle(model.DB, articleId)
+	if err != nil {
+		logger.Error().Caller().Err(err).Send()
+		return
+	}
 	// 计算当前用户量
-	row := model.PSql.Select("count(id)").
-		From(`"user"`).
-		Where("deleted_at is null").
+	row := model.PSql.Select("count(*)").
+		From("`user`").
 		RunWith(model.DB).QueryRow()
 	var count float64
 	row.Scan(&count)
 
-	count = count * 0.01
-	score := float64(article.ViewNum)/count + float64(article.LikeNum)/(count*0.2) + float64(article.CmtNum)/(0.05*count)
-	diff := float64(time.Now().Sub(article.CreatedAt))
-	score /= diff*diff + 1
+	score := float64(article.ViewNum)/count*0.1 + float64(article.LikeNum)/count*0.3 + float64(article.CmtNum)/count*0.6
+	diff := float64(time.Now().Sub(article.CreatedAt) / (time.Hour * 24))
+	score = score * 10 / diff
 
-	if score >= 1/(diff+1)*2 {
+	if score >= 1/(2*diff) {
 		_, err := model.RedisClient.ZAdd("hots", &redis.Z{
 			Score:  score,
 			Member: article.Id,
 		}).Result()
-		logger := ctx.Value("logger").(zerolog.Logger)
 		if err != nil {
 			logger.Error().Caller().AnErr("热门文章发送redis失败", err).Int("文章ID", article.Id).Send()
 			// TODO: 发送运维提醒邮件
@@ -61,7 +65,6 @@ func (r articleResolver) Hots(ctx context.Context, arg struct {
 	*schemabuilder.ConnectionArgs
 }) (*ArticlePage, error) {
 	logger := ctx.Value("logger").(zerolog.Logger)
-	tx := ctx.Value("tx").(*sqlog.DB)
 
 	var index int64
 
@@ -149,13 +152,19 @@ func (r articleResolver) Hots(ctx context.Context, arg struct {
 			logger.Error().Caller().AnErr("解析文章id出错", err).Send()
 			return nil, errors.New("查询热门文章出错")
 		}
-
-		article, err := model.QueryArticle(tx, int(id))
+		result, err := model.ESClient.Search().Index("article").Query(elastic.NewTermQuery("id", id)).Do(ctx)
 		if err != nil {
-			logger.Error().Caller().AnErr("查询文章出错", err).Send()
+			logger.Error().Caller().Err(err).Send()
 			return nil, errors.New("查询热门文章出错")
 		}
-		page.Result[index] = article
+		a := result.Each(reflect.TypeOf(model.Article{}))[0].(model.Article)
+		ex, err := model.QueryArticleEx(ctx.Value("tx").(*sqlog.DB), a.Id)
+		if err != nil {
+			logger.Error().Caller().Err(err).Send()
+			return nil, err
+		}
+		a.ArticleEx = ex
+		page.Result[index] = a
 	}
 
 	return &page, nil
@@ -169,49 +178,63 @@ func (r articleResolver) Articles(ctx context.Context, arg struct {
 	Uid       int    `graphql:"uid;;null"`
 }) ([]model.Article, error) {
 	logger := ctx.Value("logger").(zerolog.Logger)
-	tx := ctx.Value("tx").(*sqlog.DB)
 
 	var articles []model.Article
+
+	search := model.ESClient.Search().
+		Index("article")
+
 	if arg.Condition != "" {
-		arg.Condition = "*" + arg.Condition + "*"
-	} else {
-		arg.Condition = "*"
+		search.Query(elastic.NewMultiMatchQuery(arg.Condition, "title", "subTitle"))
 	}
-	searchResult, err := model.ESClient.Search().
-		Index("article").
-		Query(elastic.NewWildcardQuery("title", arg.Condition)).
-		Query(elastic.NewWildcardQuery("author", arg.Condition)).
-		Query(elastic.NewWildcardQuery("content", arg.Condition)).
-		Sort("id", true).
+	if arg.Uid != 0 {
+		search.Query(elastic.NewTermQuery("uid", arg.Uid))
+	}
+	searchResult, err := search.
+		Sort("updatedAt", true).
 		Pretty(true).
 		Do(ctx)
 	if err != nil {
 		logger.Error().Caller().AnErr("从es查询文章失败", err).Send()
-		if arg.Condition == "*" {
-			arg.Condition = ""
-		} else {
-			arg.Condition = "%" + arg.Condition + "%"
-		}
-		goto DB
+		return nil, errors.New("获取文章列表失败")
 	}
 	articles = make([]model.Article, searchResult.TotalHits())
 	for index, item := range searchResult.Each(reflect.TypeOf(model.Article{})) {
 		if a, ok := item.(model.Article); ok {
 			a.Content = ""
+			ex, err := model.QueryArticleEx(ctx.Value("tx").(*sqlog.DB), a.Id)
+			if err != nil {
+				logger.Error().Caller().Err(err).Send()
+				return nil, err
+			}
+			a.ArticleEx = ex
 			articles[index] = a
 		} else {
 			logger.Error().Caller().Msg("文章数据转换失败")
-			goto DB
+			return nil, errors.New("获取文章列表失败")
 		}
 	}
-	goto RS
-DB:
-	articles, err = model.QueryArticles(tx, arg.Condition, arg.Uid, false)
+	return articles, nil
+}
+
+// 喜欢的文章
+func (r articleResolver) LikeArticles(ctx context.Context) ([]model.Article, error) {
+	logger := ctx.Value("logger").(zerolog.Logger)
+	tx := ctx.Value("tx").(*sqlog.DB)
+
+	userId := ctx.Value("userId").(int)
+	// 获取喜欢的文章ID列表
+	list, err := model.LikeList(tx, userId, model.ArticleObj)
 	if err != nil {
-		logger.Error().Caller().AnErr("查询文章列表失败", err).Send()
+		logger.Error().Caller().Err(err).Send()
 		return nil, errors.New("获取文章列表失败")
 	}
-RS:
+	// 获取文章信息
+	articles, err := model.QueryArticlesByIds(tx, list)
+	if err != nil {
+		logger.Error().Caller().Err(err).Send()
+		return nil, errors.New("获取文章列表失败")
+	}
 	return articles, nil
 }
 
@@ -220,7 +243,7 @@ func (r articleResolver) CurArticles(ctx context.Context) ([]model.Article, erro
 	logger := ctx.Value("logger").(zerolog.Logger)
 	tx := ctx.Value("tx").(*sqlog.DB)
 
-	articles, err := model.QueryArticles(tx, "", ctx.Value("userId").(int), true)
+	articles, err := model.QueryArticles(tx, ctx.Value("userId").(int), true)
 	if err != nil {
 		logger.Error().Caller().AnErr("查询文章列表失败", err).Send()
 		return nil, errors.New("获取文章列表失败")
@@ -251,10 +274,12 @@ func (r articleResolver) Draft(ctx context.Context, arg struct {
 
 	uid := ctx.Value("userId").(int)
 	id, err := model.InsertArticle(tx, map[string]interface{}{
-		"title":   arg.Title,
-		"uid":     uid,
-		"content": "",
-		"state":   model.Draft,
+		"title":     arg.Title,
+		"uid":       uid,
+		"content":   "",
+		"sub_title": "",
+		"cover":     "",
+		"state":     model.Draft,
 	})
 	if err != nil {
 		logger.Error().Caller().AnErr("保存文章失败", err).Send()
@@ -308,7 +333,7 @@ func (r articleResolver) NewArticle(ctx context.Context, arg IdArgs) (model.Arti
 	}
 
 	user, _ := UserResolver.User(ctx, IdArgs{Id: uid})
-	article.Author = user.Username
+	article.User = user
 	article.State = model.Unaudited
 
 	// 存入es
@@ -324,6 +349,33 @@ func (r articleResolver) NewArticle(ctx context.Context, arg IdArgs) (model.Arti
 
 	return article, nil
 }
+
+// 文章存入es
+//func (r articleResolver) AddToEs(ctx context.Context, id int) error {
+//	logger := ctx.Value("logger").(zerolog.Logger)
+//	tx := ctx.Value("tx").(*sqlog.DB)
+//
+//	uid := ctx.Value("userId").(int)
+//
+//	article, err := model.QueryArticle(tx, id)
+//	if err != nil {
+//		logger.Error().Caller().AnErr("存入Es失败", err).Send()
+//		return errors.New("文章更新ES失败")
+//	}
+//	user, _ := UserResolver.User(ctx, IdArgs{Id: uid})
+//	article.User = user
+//	// 存入es
+//	_, err = model.ESClient.Index().
+//		Index("article").
+//		Id(fmt.Sprintf("%d", article.Id)).
+//		BodyJson(article).
+//		Do(ctx)
+//	if err != nil {
+//		logger.Error().Caller().AnErr("文章存入ES失败", err).Send()
+//		return errors.New("文章更新ES失败")
+//	}
+//	return nil
+//}
 
 // 更新
 func (r articleResolver) UpdateArticle(ctx context.Context, arg struct {
@@ -425,6 +477,34 @@ func (r articleResolver) Delete(ctx context.Context, arg IdArgs) error {
 	if err != nil {
 		logger.Error().Caller().AnErr("删除文章数据失败", err).Send()
 		return errors.New("删除文章失败")
+	}
+	return nil
+}
+
+// 浏览文章计数
+func (r articleResolver) View(ctx context.Context, args IdArgs) error {
+	logger := ctx.Value("logger").(zerolog.Logger)
+	tx := ctx.Value("tx").(*sqlog.DB)
+
+	sessionId := ctx.Value("sessionId").(string)
+	key := fmt.Sprintf("%s %d", sessionId, args.Id)
+	result, err := model.RedisClient.Get(key).Result()
+	if err != nil && err != redis.Nil {
+		logger.Error().Caller().Err(err).Send()
+		return errors.New("增加文章浏览数失败")
+	}
+	if err == redis.Nil || result == "" {
+		err := model.AddViewOrLikeOrCmt(tx, args.Id, 0, true)
+		if err != nil {
+			logger.Error().Caller().Err(err).Send()
+			return errors.New("增加文章浏览数失败")
+		}
+		err = model.RedisClient.Set(key, "1", time.Hour*24).Err()
+		if err != nil {
+			logger.Error().Caller().Err(err).Send()
+			return errors.New("增加文章浏览数失败")
+		}
+		go r.PutHots(ctx, args.Id)
 	}
 	return nil
 }

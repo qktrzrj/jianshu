@@ -75,6 +75,7 @@ export default function Subscriptions(props: RouteComponentProps & { currentUser
                             <UserInfo loading={false} data={{User: item}}
                                       currentUserId={props.currentUser.CurrentUser.id}/>
                             <ArticleList
+                                curId={props.currentUser.CurrentUser.id}
                                 fetchData={fetchData}
                                 loading={loadArticles}
                                 hasMore={hasMore}

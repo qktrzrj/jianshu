@@ -14,7 +14,7 @@ export default function ResultPage(props:{status:ResultStatusType,title:string,s
             subTitle={props.subTitle}
             extra={
                 [
-                    <Button type="primary" key="refresh" onClick={() => window.location.href = '/'}>
+                    <Button type="primary" key="refresh" onClick={() => window.location.reload()}>
                         刷新
                     </Button>,
                     <Button key="call">联系管理员</Button>,

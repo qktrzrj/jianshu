@@ -1,4 +1,4 @@
-import React, {useEffect} from "react";
+import React, {useState} from "react";
 import {Tabs} from "antd";
 import {RouteComponentProps} from "react-router-dom";
 import {CurrentUserQuery} from "../../generated/graphql";
@@ -9,13 +9,14 @@ import BasicSetting from "../../component/setting/basicSetting";
 const {TabPane} = Tabs
 
 export default function Setting(props: RouteComponentProps & { currentUser: CurrentUserQuery }) {
-    useEffect(() => {
-        document.title = '设置'
-    }, [])
+
+    document.title = '设置'
+
+    //@ts-ignore
+    const [key] = useState(props.match.params.key)
 
     return (
-        // @ts-ignore
-        <Tabs defaultActiveKey={props.match.params.key}
+        <Tabs activeKey={key}
               tabPosition={"left"}
               type={"card"}
               tabBarGutter={5}
@@ -24,12 +25,6 @@ export default function Setting(props: RouteComponentProps & { currentUser: Curr
             <TabPane key='basic' tab={<span className='s-tab'><IconFont type='icon-shezhiwendang'/>基本设置</span>}>
                 <BasicSetting {...props}/>
             </TabPane>
-            {/*<TabPane key='profile' tab={<span className='s-tab'><IconFont type='icon-gerenziliao1'/>个人资料</span>}>*/}
-            {/*    个人资料*/}
-            {/*</TabPane>*/}
-            {/*<TabPane key='misc' tab={<span className='s-tab'><IconFont type='icon-guanlipingtai'/>账号管理</span>}>*/}
-            {/*    账号管理*/}
-            {/*</TabPane>*/}
         </Tabs>
     )
 }

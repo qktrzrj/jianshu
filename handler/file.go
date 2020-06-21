@@ -63,5 +63,5 @@ func registerFileHandler(schema *schemabuilder.Schema) {
 			return "", errors.New("文件上传失败")
 		}
 		return fileName, nil
-	}, middleware.BasicAuth(), middleware.LoginNeed())
+	}, middleware.LoginNeed())
 }

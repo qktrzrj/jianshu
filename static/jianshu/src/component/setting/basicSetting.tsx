@@ -6,26 +6,28 @@ import {RcCustomRequestOptions} from "antd/lib/upload/interface";
 
 const {Column} = Table
 
-const data = [
-    {
-        key: '0',
-        title: 'top',
-        row: 0,
-    },
-    {
-        key: '1',
-        title: '用户名',
-        row: 1,
-    },
-    {
-        key: '2',
-        title: '电子邮件',
-        row: 2,
-    },
-]
-
 export default function BasicSetting(props: { currentUser: CurrentUserQuery }) {
-    const currentUser = props.currentUser.CurrentUser
+
+    const data = [
+        {
+            key: '0',
+            title: 'top',
+            row: 0,
+        },
+        {
+            key: '1',
+            title: '用户名',
+            row: 1,
+        },
+        {
+            key: '2',
+            title: '电子邮件',
+            row: 2,
+        },
+    ]
+
+
+    const {currentUser: {CurrentUser: currentUser}} = props
 
     const [updateUserInfo] = useUpdateUserInfoMutation()
     const [upload] = useUploadMutation()
@@ -53,7 +55,6 @@ export default function BasicSetting(props: { currentUser: CurrentUserQuery }) {
     }
 
     const customRequest = (options: RcCustomRequestOptions) => {
-        console.log(options)
         upload({variables: {file: options.file}})
             .then(res => {
                 if (res.errors) {
@@ -105,8 +106,7 @@ export default function BasicSetting(props: { currentUser: CurrentUserQuery }) {
                             action="https://upload-z2.qiniup.com/"
                             customRequest={customRequest}
                         >
-                            {/* eslint-disable-next-line jsx-a11y/anchor-is-valid,no-script-url */}
-                            <a href='javascript:void(0)' className='btn btn-hollow'>更换头像</a>
+                            <Button className='btn btn-hollow'>更换头像</Button>
                         </Upload>
                     }
                     case 1: {

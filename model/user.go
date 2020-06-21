@@ -78,6 +78,33 @@ func GetUser(tx *sqlog.DB, id int, username, email string) (User, error) {
 	return user, nil
 }
 
+// 用户列表
+func GetUsers(tx *sqlog.DB, username string) ([]User, error) {
+	rows, err := PSql.Select("u.id,u.username,u.avatar,c.fans_num,c.follow_num,c.article_num,c.words,c.like_num").
+		From("`user` u").
+		LeftJoin("user_count c on c.uid=u.id").
+		Where("1=1").
+		Where(sqlex.IF{Condition: username != "", Sq: sqlex.Like{"username": username + "%"}}).
+		RunWith(tx).Query()
+	if err != nil {
+		return nil, err
+	}
+
+	var users []User
+
+	defer rows.Close()
+	for rows.Next() {
+		var user User
+		err := rows.Scan(&user.Id, &user.Username, &user.Avatar, &user.Count.FansNum, &user.Count.FollowNum,
+			&user.Count.ArticleNum, &user.Count.Words, &user.Count.LikeNum)
+		if err != nil {
+			return nil, err
+		}
+		users = append(users, user)
+	}
+	return users, nil
+}
+
 // 获取用户扩展信息
 func GetUserCount(tx *sqlog.DB, id int) (UserCount, error) {
 	rows, err := PSql.Select("fans_num,follow_num,article_num,words,like_num").
@@ -211,7 +238,7 @@ func UpdateUser(tx *sqlog.DB, id int, setMap map[string]interface{}) error {
 
 // 用户关系
 func IsFollow(tx *sqlog.DB, uid, fuid int) (bool, error) {
-	row := PSql.Select("count(uid)").
+	row := PSql.Select("count(*)").
 		From("user_follow").
 		Where(sqlex.Eq{"uid": uid, "fuid": fuid}).
 		RunWith(tx).QueryRow()

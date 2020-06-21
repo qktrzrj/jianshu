@@ -45,6 +45,7 @@ export default function Index() {
 
     return (
         <ArticleList
+            curId={undefined}
             fetchData={fetchData}
             loading={loading}
             hasMore={hasMore}

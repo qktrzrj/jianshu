@@ -37,7 +37,7 @@ export default function Writer() {
         highlight(str, lang) {
             if (lang && hljs.getLanguage(lang)) {
                 try {
-                    return '<div class="highlight"><div class="chroma ">\n' +
+                    return '<div class="highlight" style="padding: 10px"><div class="chroma ">\n' +
                         '<table class="lntable"><tbody><tr><td class="lntd">\n' +
                         '<pre class="hljs" style="background-color: #f1f1f1"><code>' +
                         hljs.highlight(lang, str, true).value +
@@ -71,7 +71,7 @@ export default function Writer() {
     const [content, setContent] = useState()
     const [introduce, setIntroduce] = useState('')
     const inputEnd = useRef(true)
-    const articleState = useRef('发布文章')
+    const [articleState, setArticleState] = useState('发布文章')
     const [imageUrl, setImageUrl] = useState()
 
 
@@ -90,11 +90,6 @@ export default function Writer() {
         }
     }
 
-    MdEditor.use(Publish, {
-        OnClick: onPublish,
-        State: articleState.current,
-    })
-
 
     const updateArticle = (data: UpdateArticleMutationVariables, errMsg: string, refresh: boolean) => {
         update({variables: data}).then(res => {
@@ -106,11 +101,11 @@ export default function Writer() {
                 setTitle(res.data.UpdateArticle.title)
                 switch (res.data.UpdateArticle.state) {
                     case ArticleState.Updated: {
-                        articleState.current = '发布更新'
+                        setArticleState('发布更新')
                         break
                     }
                     default: {
-                        articleState.current = '发布文章'
+                        setArticleState('发布文章')
                     }
                 }
                 if (refresh) {
@@ -121,6 +116,12 @@ export default function Writer() {
             message.error(reason + '')
         })
     }
+
+    MdEditor.use(Publish, {
+        OnClick: onPublish,
+        State: articleState,
+        Loading: updateLoading,
+    })
 
 
     useEffect(() => {
@@ -180,11 +181,11 @@ export default function Writer() {
                 if (res.data) {
                     switch (res.data.Article.state) {
                         case ArticleState.Updated: {
-                            articleState.current = '发布更新'
+                            setArticleState('发布更新')
                             break
                         }
                         default: {
-                            articleState.current = '发布文章'
+                            setArticleState('发布文章')
                         }
                     }
                     setTitle(res.data.Article.title)
@@ -285,7 +286,7 @@ export default function Writer() {
                 }
                 if (res.data) {
                     sk.current = res.data.DraftArticle.id + ''
-                    articleState.current = '发布文章'
+                    setArticleState('发布文章')
                     setTitle(res.data.DraftArticle.title)
                     setContent('')
                     setList([{node: res.data.DraftArticle}].concat(...list.slice()))
@@ -307,6 +308,23 @@ export default function Writer() {
             subTitle: null,
         }, '修改标题失败', true)
     }
+
+    const handleImageUpload = (file: File): Promise<string> => {
+        return new Promise(resolve => {
+            upload({variables: {file: file}})
+                .then(res => {
+                    if (res.errors) {
+                        message.error(res.errors + '')
+                    }
+                    if (res.data) {
+                        resolve('http://localhost:8008/image/' + res.data.Upload)
+                    }
+                })
+                .catch(reason => {
+                    message.error(reason + '')
+                })
+        });
+    };
 
     return (
         <Layout className="writer">
@@ -434,6 +452,7 @@ export default function Writer() {
                             syncScrollMode: ['leftFollowRight', 'rightFollowLeft'],
                         }}
                         renderHTML={renderHTML}
+                        onImageUpload={handleImageUpload}
                         onChange={updateMarkdown}
                     />
                 </Content>

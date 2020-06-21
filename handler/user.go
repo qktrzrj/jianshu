@@ -31,12 +31,15 @@ func registerUser(schema *schemabuilder.Schema) {
 	user.FieldFunc("LikeNum", func(u model.User) int { return u.Count.LikeNum })
 
 	query := schema.Query()
+	// 用户列表
+	schemabuilder.RelayKey(model.User{}, "id")
+	query.FieldFunc("Users", resolve.UserResolver.Users, schemabuilder.RelayConnection)
 	// 获取用户信息
 	query.FieldFunc("User", resolve.UserResolver.User)
 	// 获取当前用户信息
 	query.FieldFunc("CurrentUser", func(ctx context.Context) (model.User, error) {
 		return resolve.UserResolver.User(ctx, resolve.IdArgs{Id: ctx.Value("userId").(int)})
-	}, middleware.BasicAuth(), middleware.LoginNeed())
+	}, middleware.LoginNeed())
 	// 校验用户名/邮箱唯一性
 	query.FieldFunc("ValidUsername", resolve.UserResolver.ValidUsername)
 	query.FieldFunc("ValidEmail", resolve.UserResolver.ValidEmail)
@@ -45,20 +48,20 @@ func registerUser(schema *schemabuilder.Schema) {
 	// 关注列表
 	query.FieldFunc("Followed", resolve.UserResolver.Follows)
 	// 用户关系
-	query.FieldFunc("IsFollow", resolve.UserResolver.IsFollow, middleware.BasicAuth(), middleware.LoginNeed())
+	query.FieldFunc("IsFollow", resolve.UserResolver.IsFollow, middleware.LoginNeed())
 
 	mutation := schema.Mutation()
 	// 注册
-	mutation.FieldFunc("SignUp", resolve.UserResolver.SingUp, middleware.BasicAuth(), middleware.NotLogin())
+	mutation.FieldFunc("SignUp", resolve.UserResolver.SingUp, middleware.NotLogin())
 	// 登录
-	mutation.FieldFunc("SignIn", resolve.UserResolver.SignIn, middleware.BasicAuth(), middleware.NotLogin())
+	mutation.FieldFunc("SignIn", resolve.UserResolver.SignIn, middleware.NotLogin())
 	// 退出登录
-	mutation.FieldFunc("Logout", resolve.UserResolver.Logout, middleware.BasicAuth(), middleware.LoginNeed())
+	mutation.FieldFunc("Logout", resolve.UserResolver.Logout, middleware.LoginNeed())
 	// 关注
-	mutation.FieldFunc("Follow", resolve.UserResolver.Follow, middleware.BasicAuth(), middleware.LoginNeed())
+	mutation.FieldFunc("Follow", resolve.UserResolver.Follow, middleware.LoginNeed())
 	// 取消关注
-	mutation.FieldFunc("UnFollow", resolve.UserResolver.CancelFollow, middleware.BasicAuth(), middleware.LoginNeed())
+	mutation.FieldFunc("UnFollow", resolve.UserResolver.CancelFollow, middleware.LoginNeed())
 	// 修改用户信息
-	mutation.FieldFunc("UpdateUserInfo", resolve.UserResolver.UpdateUserInfo, middleware.BasicAuth(), middleware.LoginNeed())
+	mutation.FieldFunc("UpdateUserInfo", resolve.UserResolver.UpdateUserInfo, middleware.LoginNeed())
 
 }

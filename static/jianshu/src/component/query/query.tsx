@@ -66,6 +66,7 @@ fragment articlesInfo on Article {
      subTitle
      cover
      content
+     updatedAt
      User{
         id
         username
@@ -122,10 +123,31 @@ query Article($id:Int!){
   Article(id:$id){
     id
     title
+    subTitle
     content
     state
+    updatedAt
+    ViewNum
+    LikeNum
+    CmtNum
+    User{
+        ...userInfo
+     }
+     CommentList{
+        id
+        floor
+        content
+        updatedAt
+        likeNum
+        User{
+          id
+          username
+          avatar
+        }
+      }
   }
 }
+${UserInfoFragmentGQL}
 `
 
 export const DeleteArticle = gql`
@@ -176,8 +198,24 @@ mutation UpdateUserInfo($username:String=null,$avatar:String=null,$email:String=
 `
 
 export const ArticlesGQL = gql`
-query Articles($cursor:String,$uid:Int){
-  Articles(first:10,after:$cursor,uid:$uid){
+query Articles($cursor:String=null,$uid:Int=null,$condition:String=null){
+  Articles(first:10,after:$cursor,uid:$uid,condition:$condition){
+    edges{
+      node{
+        ...articlesInfo
+      }
+    }
+    pageInfo{
+      endCursor
+      hasNextPage
+    }
+  }
+}
+`
+
+export const LikeArticlesGQL = gql`
+query LikeArticles($cursor:String=null){
+  CurLikeArticles(first:10,after:$cursor){
     edges{
       node{
         ...articlesInfo
@@ -206,14 +244,139 @@ query IsFollow($id:Int!) {
 }
 `
 
-export const FollowGQL =gql`
+export const FollowGQL = gql`
 mutation Follow($id:Int!){
   Follow(id:$id)
 }
 `
 
-export const UnFollowGQL =gql`
+export const UnFollowGQL = gql`
 mutation UnFollow($id:Int!){
   UnFollow(id:$id)
 }
 `
+
+export const UsersGQL = gql`
+query Users($username:String=null){
+    Users(username:$username){
+        edges{
+          node{
+            id
+            username
+            avatar
+            FansNum
+            FollowNum
+            LikeNum
+            Words
+          }
+        }
+        pageInfo{
+          endCursor
+          hasNextPage
+        }
+    }
+}
+`
+
+export const ViewGQL=gql`
+mutation ViewAdd($id:Int!){
+  ViewAdd(id:$id)
+}
+`
+
+export const LikeGQL=gql`
+mutation Like($id:Int!,$objtyp:ObjType!){
+  Like(id:$id,objType:$objtyp)
+}
+`
+
+export const UnLikeGQL=gql`
+mutation UnLike($id:Int!,$objtyp:ObjType!){
+  Unlike(id:$id,objType:$objtyp)
+}
+`
+
+export const HasLikeGQL=gql`
+query HasLike($id:Int!,$objtyp:ObjType!){
+  HasLike(id:$id,objType:$objtyp)
+}
+`
+
+export const ReplyListGQL =gql`
+query ReplyList($id:Int!){
+    ReplyList(id:$id){
+            id
+            content
+            updatedAt
+            User{
+                id
+                username
+                avatar
+            }
+     }
+}
+`
+
+export const AddCommentGQL = gql`
+mutation AddComment($id:Int!,$content:String!){
+  AddComment(id:$id,content:$content){
+    User{
+      id
+      username
+      avatar
+    }
+    content
+    floor
+    id
+    likeNum
+    updatedAt
+  }
+}
+`
+
+export const AddReplyGQL=gql`
+mutation AddReply($id:Int!,$content:String!){
+  AddReply(id:$id,content:$content){
+    User{
+      id
+      username
+      avatar
+    }
+    content
+    id
+    updatedAt
+  }
+}
+`
+
+export const AddMsgGQl=gql`
+mutation AddMsg($typ:MsgType!,$fromId:Int!,$toId:Int!,$content:String!){
+  AddMsg(typ:$typ,fromId:$fromId,toId:$toId,content:$content)
+}
+`
+
+export const MsgNumGQl=gql`
+query MsgNum{
+  MsgNum{
+    comment
+    follow
+    like
+    reply
+  }
+}
+`
+
+export const ListMsgGQL=gql`
+query ListMsg($typ:MsgType!){
+  ListMsg(typ:$typ){
+    User{
+      id
+      username
+      avatar
+    }
+    content
+    updatedAt
+  }
+}
+`
+

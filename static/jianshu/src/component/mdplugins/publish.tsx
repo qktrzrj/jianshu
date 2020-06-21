@@ -30,6 +30,7 @@ class Publish extends PluginComponent<PublishProps> {
                 onClick={this.handleClick}
             >
              <IconFont type='icon-qianjin'/>{this.props.config.State}
+                {this.props.config.Loading && <span style={{marginLeft:10}}>保存中...</span>}
             </span>
         )
     }

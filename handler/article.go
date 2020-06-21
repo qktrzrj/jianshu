@@ -28,6 +28,8 @@ func registerArticle(schema *schemabuilder.Schema) {
 	article.FieldFunc("User", func(ctx context.Context, source model.Article) (model.User, error) {
 		return resolve.UserResolver.User(ctx, resolve.IdArgs{Id: source.Uid})
 	})
+	// 文章评论
+	article.FieldFunc("CommentList", resolve.CommentResolver.List)
 
 	query := schema.Query()
 	schemabuilder.RelayKey(model.Article{}, "id")
@@ -37,18 +39,23 @@ func registerArticle(schema *schemabuilder.Schema) {
 	// 查询文章（分页）
 	query.FieldFunc("Articles", resolve.ArticleResolver.Articles, schemabuilder.RelayConnection)
 	// 获取登录人文章（分页）
-	query.FieldFunc("CurArticles", resolve.ArticleResolver.CurArticles, middleware.BasicAuth(),
+	query.FieldFunc("CurArticles", resolve.ArticleResolver.CurArticles,
 		middleware.LoginNeed(), schemabuilder.RelayConnection)
+	// 获取登录人喜欢的文章(分页)
+	query.FieldFunc("CurLikeArticles", resolve.ArticleResolver.LikeArticles, middleware.LoginNeed(),
+		schemabuilder.RelayConnection)
 	// 获取文章（单个详细）
 	query.FieldFunc("Article", resolve.ArticleResolver.Article)
 
 	mutation := schema.Mutation()
 	// 草稿
-	mutation.FieldFunc("DraftArticle", resolve.ArticleResolver.Draft, middleware.BasicAuth(), middleware.LoginNeed())
+	mutation.FieldFunc("DraftArticle", resolve.ArticleResolver.Draft, middleware.LoginNeed())
 	// 发布
-	mutation.FieldFunc("NewArticle", resolve.ArticleResolver.NewArticle, middleware.BasicAuth(), middleware.LoginNeed())
+	mutation.FieldFunc("NewArticle", resolve.ArticleResolver.NewArticle, middleware.LoginNeed())
 	// 修改
-	mutation.FieldFunc("UpdateArticle", resolve.ArticleResolver.UpdateArticle, middleware.BasicAuth(), middleware.LoginNeed())
+	mutation.FieldFunc("UpdateArticle", resolve.ArticleResolver.UpdateArticle, middleware.LoginNeed())
 	// 删除
-	mutation.FieldFunc("DeleteArticle", resolve.ArticleResolver.Delete, middleware.BasicAuth(), middleware.LoginNeed())
+	mutation.FieldFunc("DeleteArticle", resolve.ArticleResolver.Delete, middleware.LoginNeed())
+	// 文章浏览数
+	mutation.FieldFunc("ViewAdd", resolve.ArticleResolver.View)
 }

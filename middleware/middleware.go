@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/rs/zerolog"
 	"github.com/shyptr/graphql"
@@ -85,26 +86,47 @@ func Tx(ld *sqlog.DB) graphql.HandlerFunc {
 	}
 }
 
-func BasicAuth() schemabuilder.ExecuteFunc {
-	return func(ctx context.Context, args, source interface{}) error {
-		c := ctx.(*graphql.Context)
+func BasicAuth() graphql.HandlerFunc {
+	return func(c *graphql.Context) {
 		logger := c.Value("logger").(zerolog.Logger)
-		cookie, _ := c.Request.Cookie("me")
-		if cookie == nil {
-			return nil
+		// sessionId
+		cs, err := c.Request.Cookie("Sess")
+		if err == http.ErrNoCookie || cs == nil {
+			sessionId := uuid.New().String()
+			http.SetCookie(c.Writer, &http.Cookie{
+				Name:    "Sess",
+				Value:   sessionId,
+				Path:    "/",
+				Expires: time.Now().Add(time.Hour * 24),
+				MaxAge:  int(time.Now().Add(time.Hour * 24).Unix()),
+				Domain:  "localhost",
+			})
+			c.Set("sessionId", sessionId)
+		} else {
+			c.Set("sessionId", cs.Value)
+		}
+
+		cookie, err := c.Request.Cookie("me")
+		defer c.Next()
+		if err == http.ErrNoCookie || cookie == nil {
+			return
 		}
 		token := cookie.Value
 		if token != "" {
 			user, err := util.ParseToken(token)
 			if err != nil {
-				logger.Error().AnErr("解析token失败", err).Send()
-				return errors.New("解析token失败")
+				if err == util.ErrTokenExpire {
+					c.Set("sessionId", token)
+					return
+				} else {
+					logger.Error().AnErr("解析token失败", err).Send()
+					return
+				}
 			}
 			c.Set("userId", user.Id)
 			c.Set("root", user.Root)
 			c.Set("userState", user.State)
 		}
-		return nil
 	}
 }
 

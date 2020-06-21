@@ -15,6 +15,8 @@ type UserClaims struct {
 	State int
 }
 
+var ErrTokenExpire = errors.New("token过期")
+
 func GeneraToken(id int, root bool, state int, age time.Duration) (string, error) {
 	claims := jwt.NewWithClaims(jwt.SigningMethodHS256, UserClaims{
 		StandardClaims: jwt.StandardClaims{
@@ -38,7 +40,7 @@ func ParseToken(token string) (UserClaims, error) {
 	userClaims := claims.Claims.(*UserClaims)
 	expiresAt := userClaims.VerifyExpiresAt(time.Now().Unix(), true)
 	if !expiresAt {
-		return UserClaims{}, errors.New("token失效")
+		return UserClaims{}, ErrTokenExpire
 	}
 	return *userClaims, nil
 }

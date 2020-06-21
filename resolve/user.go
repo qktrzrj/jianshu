@@ -23,6 +23,21 @@ type IdArgs struct {
 	Id int `graphql:"id"`
 }
 
+func (u userResolver) Users(ctx context.Context, arg struct {
+	Username string `graphql:"username;;null"`
+}) ([]model.User, error) {
+	logger := ctx.Value("logger").(zerolog.Logger)
+	tx := ctx.Value("tx").(*sqlog.DB)
+
+	users, err := model.GetUsers(tx, arg.Username)
+	if err != nil {
+		logger.Error().Caller().Err(err).Send()
+		return nil, fmt.Errorf("查询用户信息失败")
+	}
+
+	return users, nil
+}
+
 // 根据用户ID查询用户信息
 func (u userResolver) User(ctx context.Context, args IdArgs) (model.User, error) {
 	logger := ctx.Value("logger").(zerolog.Logger)
@@ -180,7 +195,7 @@ func (u userResolver) SingUp(ctx context.Context, args struct {
 		"username": args.Username,
 		"email":    args.Email,
 		"password": string(password),
-		"avatar":   "默认头像",
+		"avatar":   "http://localhost:8008/image/default",
 		"root":     false,
 	})
 	if err != nil {

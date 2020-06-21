@@ -24,7 +24,7 @@ func init() {
 }
 
 func main() {
-	graphql.Use(middleware.CORS(), middleware.Logger(), middleware.Tx(model.DB), middleware.Recovery())
+	graphql.Use(middleware.CORS(), middleware.Logger(), middleware.Tx(model.DB), middleware.BasicAuth(), middleware.Recovery())
 	mux := http.DefaultServeMux
 	handler.Register(mux)
 

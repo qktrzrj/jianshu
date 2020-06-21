@@ -1,16 +1,29 @@
 import React, {useEffect, useState} from "react";
 import {Avatar, Button, Card, message} from "antd";
 import {Link} from "react-router-dom";
-import {Gender, useFollowMutation, useIsFollowLazyQuery, UserQuery, useUnFollowMutation} from "../../generated/graphql";
+import {
+    Gender, MsgType,
+    useAddMsgMutation,
+    useFollowMutation,
+    useIsFollowLazyQuery,
+    UserQuery,
+    useUnFollowMutation
+} from "../../generated/graphql";
 import './userInfo.less'
 import {IconFont} from "../IconFont";
 
-export default function UserInfo(props: { loading: boolean, data: UserQuery | undefined, currentUserId: number | undefined }) {
+export default function UserInfo(props: {
+    loading: boolean,
+    data: UserQuery | undefined,
+    currentUserId: number | undefined,
+    className?: string
+}) {
     const {data, loading, currentUserId} = props
 
     const [fetch, {data: isFollow, error}] = useIsFollowLazyQuery()
     const [follow] = useFollowMutation()
     const [unFollow] = useUnFollowMutation()
+    const [addMsg] = useAddMsgMutation()
 
     const [IsFollow, setIsFollow] = useState(false)
 
@@ -40,6 +53,16 @@ export default function UserInfo(props: { loading: boolean, data: UserQuery | un
                     }
                     if (res.data && res.data.Follow) {
                         setIsFollow(true)
+                        if (props.currentUserId){
+                            addMsg({
+                                variables: {
+                                    typ: MsgType.FollowMsg,
+                                    fromId: props.currentUserId,
+                                    toId: data.User.id,
+                                    content: `关注了你`,
+                                }
+                            }).catch(reason => message.error(reason+''))
+                        }
                     }
                 })
                 .catch(e => message.error(e + ''))
@@ -65,7 +88,8 @@ export default function UserInfo(props: { loading: boolean, data: UserQuery | un
     return (<Card
             bordered={false}
             loading={loading}
-            className='user-card'
+            size={"small"}
+            className={props.className || 'user-card'}
         >
             <Card.Meta
                 avatar={<Avatar className='avatar' size={"large"} src={data?.User.avatar}/>}
@@ -80,11 +104,11 @@ export default function UserInfo(props: { loading: boolean, data: UserQuery | un
                     <Card bordered={false} className='info'>
                         <Card.Grid hoverable={false} className='meta'>
                             <span>{data?.User.FollowNum}</span>
-                            <Link to='/like'>关注></Link>
+                            <span>关注</span>
                         </Card.Grid>
                         <Card.Grid hoverable={false} className='meta'>
                             <span>{data?.User.FansNum}</span>
-                            <Link to='/like'>粉丝></Link>
+                            <span>粉丝</span>
                         </Card.Grid>
                         <Card.Grid hoverable={false} className='meta'>
                             <span>{data?.User.Words}</span>
