@@ -13,7 +13,7 @@ import {
     ArticleEdge, ArticleState, UpdateArticleMutationVariables,
     useArticleLazyQuery,
     useDeleteArticleMutation,
-    useDraftArticleMutation,
+    useDraftArticleMutation, useMyArticleLazyQuery,
     useMyArticlesQuery, useNewArticleMutation, useUpdateArticleMutation, useUploadMutation
 } from "../../generated/graphql";
 import ReactDOM from "react-dom";
@@ -56,7 +56,7 @@ export default function Writer() {
 
     const {refetch: refetchMyArticles, data, loading, error} = useMyArticlesQuery()
     const [draft, {error: draftArticleError}] = useDraftArticleMutation()
-    const [fetchArticle, {data: articleData, refetch, error: articleErr}] = useArticleLazyQuery()
+    const [fetchArticle, {data: articleData, refetch, error: articleErr}] = useMyArticleLazyQuery()
     const [deleteArticle] = useDeleteArticleMutation()
     const [update, {loading: updateLoading}] = useUpdateArticleMutation()
     const [publish] = useNewArticleMutation()
@@ -139,7 +139,7 @@ export default function Writer() {
             message.error(articleErr)
         }
         if (articleData && !content && content !== '') {
-            setContent(articleData.Article.content)
+            setContent(articleData.MyArticle.content)
         }
 
     }, [articleData, articleErr, content, data, fetchArticle, list])
@@ -179,7 +179,7 @@ export default function Writer() {
                     message.error(res.errors + '')
                 }
                 if (res.data) {
-                    switch (res.data.Article.state) {
+                    switch (res.data.MyArticle.state) {
                         case ArticleState.Updated: {
                             setArticleState('发布更新')
                             break
@@ -188,8 +188,8 @@ export default function Writer() {
                             setArticleState('发布文章')
                         }
                     }
-                    setTitle(res.data.Article.title)
-                    setContent(res.data.Article.content)
+                    setTitle(res.data.MyArticle.title)
+                    setContent(res.data.MyArticle.content)
                 }
             })
             .catch(reason => {

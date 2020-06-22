@@ -46,6 +46,7 @@ func registerArticle(schema *schemabuilder.Schema) {
 		schemabuilder.RelayConnection)
 	// 获取文章（单个详细）
 	query.FieldFunc("Article", resolve.ArticleResolver.Article)
+	query.FieldFunc("MyArticle", resolve.ArticleResolver.MyArticle, middleware.LoginNeed())
 
 	mutation := schema.Mutation()
 	// 草稿

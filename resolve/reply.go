@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/rs/zerolog"
+	"github.com/shyptr/jianshu/cache"
 	"github.com/shyptr/jianshu/model"
 	"github.com/shyptr/plugins/sqlog"
 )
@@ -16,12 +17,14 @@ func (r replyResolver) List(ctx context.Context, args IdArgs) ([]model.Reply, er
 	logger := ctx.Value("logger").(zerolog.Logger)
 	tx := ctx.Value("tx").(*sqlog.DB)
 
-	replies, err := model.ListReply(tx, args.Id)
+	replies, err := cache.QueryCaches(ctx, cache.Reply{Cid: args.Id}, func() (interface{}, error) {
+		return model.ListReply(tx, args.Id)
+	})
 	if err != nil {
 		logger.Error().Caller().Err(err).Send()
 		return nil, errors.New("获取评论回复失败")
 	}
-	return replies, nil
+	return replies.([]model.Reply), nil
 }
 
 func (r replyResolver) Add(ctx context.Context, args struct {
@@ -33,6 +36,7 @@ func (r replyResolver) Add(ctx context.Context, args struct {
 
 	userId := ctx.Value("userId").(int)
 
+	cache.Delete(cache.Reply{Cid: args.Id}.GetCachesKey())
 	reply, err := model.AddReply(tx, map[string]interface{}{
 		"cid":     args.Id,
 		"uid":     userId,

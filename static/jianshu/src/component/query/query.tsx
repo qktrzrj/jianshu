@@ -65,7 +65,6 @@ fragment articlesInfo on Article {
      title
      subTitle
      cover
-     content
      updatedAt
      User{
         id
@@ -150,6 +149,19 @@ query Article($id:Int!){
 ${UserInfoFragmentGQL}
 `
 
+export const MyArticleGQL = gql`
+query MyArticle($id:Int!){
+  MyArticle(id:$id){
+    id
+    title
+    subTitle
+    content
+    state
+  }
+}
+${UserInfoFragmentGQL}
+`
+
 export const DeleteArticle = gql`
 mutation DeleteArticle($id:Int!){
   DeleteArticle(id:$id)
@@ -211,6 +223,7 @@ query Articles($cursor:String=null,$uid:Int=null,$condition:String=null){
     }
   }
 }
+${ArticlesFragmentGQL}
 `
 
 export const LikeArticlesGQL = gql`
@@ -227,6 +240,7 @@ query LikeArticles($cursor:String=null){
     }
   }
 }
+${ArticlesFragmentGQL}
 `
 
 export const FollowListGQL = gql`

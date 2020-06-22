@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/rs/zerolog"
+	"github.com/shyptr/jianshu/cache"
 	"github.com/shyptr/jianshu/model"
 	"github.com/shyptr/plugins/sqlog"
 )
@@ -39,6 +40,7 @@ func (r likeResolver) Like(ctx context.Context, args objArg) error {
 
 	userId := ctx.Value("userId").(int)
 
+	cache.Delete(cache.Like{Uid: userId, Typ: args.ObjType}.GetCacheKey())
 	err := model.Like(tx, map[string]interface{}{
 		"objtype": args.ObjType,
 		"objid":   args.Id,
@@ -50,6 +52,7 @@ func (r likeResolver) Like(ctx context.Context, args objArg) error {
 	}
 
 	if args.ObjType == model.ArticleObj {
+		cache.Delete(cache.ArticleEx{Aid: args.Id}.GetCacheKey())
 		err := model.AddViewOrLikeOrCmt(tx, args.Id, 1, true)
 		if err != nil {
 			logger.Error().Caller().Err(err).Send()
@@ -67,12 +70,14 @@ func (r likeResolver) UnLike(ctx context.Context, args objArg) error {
 
 	userId := ctx.Value("userId").(int)
 
+	cache.Delete(cache.Like{Uid: userId, Typ: args.ObjType}.GetCacheKey())
 	err := model.UnLike(tx, args.ObjType, args.Id, userId)
 	if err != nil {
 		logger.Error().Caller().Err(err).Send()
 		return errors.New("取消点赞失败")
 	}
 	if args.ObjType == model.ArticleObj {
+		cache.Delete(cache.ArticleEx{Aid: args.Id}.GetCacheKey())
 		err := model.AddViewOrLikeOrCmt(tx, args.Id, 1, false)
 		if err != nil {
 			logger.Error().Caller().Err(err).Send()

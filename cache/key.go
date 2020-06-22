@@ -23,7 +23,7 @@ func QueryCaches(ctx context.Context, key key, noExist func() (interface{}, erro
 	r := reflect.TypeOf(key)
 	logger := ctx.Value("logger").(zerolog.Logger)
 
-	s := reflect.MakeSlice(reflect.SliceOf(relation[r]), 0, 0).Interface()
+	s := reflect.New(reflect.SliceOf(relation[r])).Elem()
 
 	// 查询缓存
 	k := key.GetCacheKey()
@@ -32,8 +32,8 @@ func QueryCaches(ctx context.Context, key key, noExist func() (interface{}, erro
 		if err != nil {
 			logger.Error().Caller().Err(err).Send()
 		} else {
-			json.Unmarshal(result, &s)
-			return s, nil
+			json.Unmarshal(result, s.Addr().Interface())
+			return s.Interface(), nil
 		}
 	}
 	data, err := noExist()
@@ -48,7 +48,7 @@ func QueryCache(ctx context.Context, key key, noExist func() (interface{}, error
 	r := reflect.TypeOf(key)
 	logger := ctx.Value("logger").(zerolog.Logger)
 
-	s := reflect.New(relation[r]).Elem().Interface()
+	s := reflect.New(relation[r]).Elem()
 
 	// 查询缓存
 	k := key.GetCachesKey()
@@ -57,8 +57,8 @@ func QueryCache(ctx context.Context, key key, noExist func() (interface{}, error
 		if err != nil {
 			logger.Error().Caller().Err(err).Send()
 		} else {
-			json.Unmarshal(result, &s)
-			return s, nil
+			json.Unmarshal(result, s.Addr().Interface())
+			return s.Interface(), nil
 		}
 	}
 	data, err := noExist()

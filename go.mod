@@ -10,15 +10,12 @@ require (
 	github.com/golang/protobuf v1.4.0 // indirect
 	github.com/google/uuid v1.1.1
 	github.com/jmoiron/sqlx v1.2.0
-	github.com/lib/pq v1.1.1
 	github.com/mitchellh/mapstructure v1.1.2
 	github.com/olivere/elastic/v7 v7.0.14
-	github.com/qiniu/api.v7/v7 v7.4.1
 	github.com/rs/zerolog v1.18.0
 	github.com/shyptr/graphql v1.0.9
 	github.com/shyptr/plugins v0.0.0-20200416002948-3cde4c9da77c
 	github.com/shyptr/sqlex v1.4.12
-	github.com/sony/sonyflake v1.0.0
 	github.com/spf13/viper v1.6.3
 	golang.org/x/crypto v0.0.0-20191011191535-87dc89f01550
 	golang.org/x/net v0.0.0-20200501053045-e0ff5e5a1de5 // indirect

@@ -261,6 +261,7 @@ export type Query = {
   IsFollow: Scalars['Boolean'];
   ListMsg?: Maybe<Array<Msg>>;
   MsgNum: MsgNum;
+  MyArticle: Article;
   ReplyList?: Maybe<Array<Reply>>;
   User: User;
   Users: UserConnection;
@@ -336,6 +337,11 @@ export type QueryIsFollowArgs = {
 
 export type QueryListMsgArgs = {
   typ: MsgType;
+};
+
+
+export type QueryMyArticleArgs = {
+  id: Scalars['Int'];
 };
 
 
@@ -491,7 +497,7 @@ export type CurrentUserQuery = (
 
 export type ArticlesInfoFragment = (
   { __typename?: 'Article' }
-  & Pick<Article, 'id' | 'title' | 'subTitle' | 'cover' | 'content' | 'updatedAt' | 'ViewNum' | 'LikeNum' | 'CmtNum'>
+  & Pick<Article, 'id' | 'title' | 'subTitle' | 'cover' | 'updatedAt' | 'ViewNum' | 'LikeNum' | 'CmtNum'>
   & { User: (
     { __typename?: 'User' }
     & Pick<User, 'id' | 'username'>
@@ -571,6 +577,19 @@ export type ArticleQuery = (
         & Pick<User, 'id' | 'username' | 'avatar'>
       ) }
     )>> }
+  ) }
+);
+
+export type MyArticleQueryVariables = {
+  id: Scalars['Int'];
+};
+
+
+export type MyArticleQuery = (
+  { __typename?: 'Query' }
+  & { MyArticle: (
+    { __typename?: 'Article' }
+    & Pick<Article, 'id' | 'title' | 'subTitle' | 'content' | 'state'>
   ) }
 );
 
@@ -921,7 +940,6 @@ export const ArticlesInfoFragmentDoc = gql`
   title
   subTitle
   cover
-  content
   updatedAt
   User {
     id
@@ -1482,6 +1500,62 @@ export function useArticleLazyQuery(baseOptions?: ApolloReactHooks.LazyQueryHook
 export type ArticleQueryHookResult = ReturnType<typeof useArticleQuery>;
 export type ArticleLazyQueryHookResult = ReturnType<typeof useArticleLazyQuery>;
 export type ArticleQueryResult = ApolloReactCommon.QueryResult<ArticleQuery, ArticleQueryVariables>;
+export const MyArticleDocument = gql`
+    query MyArticle($id: Int!) {
+  MyArticle(id: $id) {
+    id
+    title
+    subTitle
+    content
+    state
+  }
+}
+    `;
+export type MyArticleComponentProps = Omit<ApolloReactComponents.QueryComponentOptions<MyArticleQuery, MyArticleQueryVariables>, 'query'> & ({ variables: MyArticleQueryVariables; skip?: boolean; } | { skip: boolean; });
+
+    export const MyArticleComponent = (props: MyArticleComponentProps) => (
+      <ApolloReactComponents.Query<MyArticleQuery, MyArticleQueryVariables> query={MyArticleDocument} {...props} />
+    );
+    
+export type MyArticleProps<TChildProps = {}, TDataName extends string = 'data'> = {
+      [key in TDataName]: ApolloReactHoc.DataValue<MyArticleQuery, MyArticleQueryVariables>
+    } & TChildProps;
+export function withMyArticle<TProps, TChildProps = {}, TDataName extends string = 'data'>(operationOptions?: ApolloReactHoc.OperationOption<
+  TProps,
+  MyArticleQuery,
+  MyArticleQueryVariables,
+  MyArticleProps<TChildProps, TDataName>>) {
+    return ApolloReactHoc.withQuery<TProps, MyArticleQuery, MyArticleQueryVariables, MyArticleProps<TChildProps, TDataName>>(MyArticleDocument, {
+      alias: 'myArticle',
+      ...operationOptions
+    });
+};
+
+/**
+ * __useMyArticleQuery__
+ *
+ * To run a query within a React component, call `useMyArticleQuery` and pass it any options that fit your needs.
+ * When your component renders, `useMyArticleQuery` returns an object from Apollo Client that contains loading, error, and data properties
+ * you can use to render your UI.
+ *
+ * @param baseOptions options that will be passed into the query, supported options are listed on: https://www.apollographql.com/docs/react/api/react-hooks/#options;
+ *
+ * @example
+ * const { data, loading, error } = useMyArticleQuery({
+ *   variables: {
+ *      id: // value for 'id'
+ *   },
+ * });
+ */
+export function useMyArticleQuery(baseOptions?: ApolloReactHooks.QueryHookOptions<MyArticleQuery, MyArticleQueryVariables>) {
+        return ApolloReactHooks.useQuery<MyArticleQuery, MyArticleQueryVariables>(MyArticleDocument, baseOptions);
+      }
+export function useMyArticleLazyQuery(baseOptions?: ApolloReactHooks.LazyQueryHookOptions<MyArticleQuery, MyArticleQueryVariables>) {
+          return ApolloReactHooks.useLazyQuery<MyArticleQuery, MyArticleQueryVariables>(MyArticleDocument, baseOptions);
+        }
+export type MyArticleQueryHookResult = ReturnType<typeof useMyArticleQuery>;
+export type MyArticleLazyQueryHookResult = ReturnType<typeof useMyArticleLazyQuery>;
+export type MyArticleQueryResult = ApolloReactCommon.QueryResult<MyArticleQuery, MyArticleQueryVariables>;
 export const DeleteArticleDocument = gql`
     mutation DeleteArticle($id: Int!) {
   DeleteArticle(id: $id)

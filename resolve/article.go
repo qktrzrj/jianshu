@@ -153,19 +153,8 @@ func (r articleResolver) Hots(ctx context.Context, arg struct {
 			logger.Error().Caller().AnErr("解析文章id出错", err).Send()
 			return nil, errors.New("查询热门文章出错")
 		}
-		result, err := model.ESClient.Search().Index("article").Query(elastic.NewTermQuery("id", id)).Do(ctx)
-		if err != nil {
-			logger.Error().Caller().Err(err).Send()
-			return nil, errors.New("查询热门文章出错")
-		}
-		a := result.Each(reflect.TypeOf(model.Article{}))[0].(model.Article)
-		ex, err := model.QueryArticleEx(ctx.Value("tx").(*sqlog.DB), a.Id)
-		if err != nil {
-			logger.Error().Caller().Err(err).Send()
-			return nil, err
-		}
-		a.ArticleEx = ex
-		page.Result[index] = a
+		article, err := r.Article(ctx, IdArgs{int(id)})
+		page.Result[index] = article
 	}
 
 	return &page, nil
@@ -180,42 +169,48 @@ func (r articleResolver) Articles(ctx context.Context, arg struct {
 }) ([]model.Article, error) {
 	logger := ctx.Value("logger").(zerolog.Logger)
 
-	var articles []model.Article
+	articles, err := cache.QueryCaches(ctx, cache.Article{Uid: arg.Uid, Condition: arg.Condition}, func() (interface{}, error) {
+		var articles []model.Article
 
-	search := model.ESClient.Search().
-		Index("article")
+		search := model.ESClient.Search().Index("article")
 
-	if arg.Condition != "" {
-		search.Query(elastic.NewMultiMatchQuery(arg.Condition, "title", "subTitle"))
-	}
-	if arg.Uid != 0 {
-		search.Query(elastic.NewTermQuery("uid", arg.Uid))
-	}
-	searchResult, err := search.
-		Sort("updatedAt", true).
-		Pretty(true).
-		Do(ctx)
-	if err != nil {
-		logger.Error().Caller().AnErr("从es查询文章失败", err).Send()
-		return nil, errors.New("获取文章列表失败")
-	}
-	articles = make([]model.Article, searchResult.TotalHits())
-	for index, item := range searchResult.Each(reflect.TypeOf(model.Article{})) {
-		if a, ok := item.(model.Article); ok {
-			a.Content = ""
-			ex, err := model.QueryArticleEx(ctx.Value("tx").(*sqlog.DB), a.Id)
-			if err != nil {
-				logger.Error().Caller().Err(err).Send()
-				return nil, err
-			}
-			a.ArticleEx = ex
-			articles[index] = a
-		} else {
-			logger.Error().Caller().Msg("文章数据转换失败")
+		if arg.Condition != "" {
+			search.Query(elastic.NewMultiMatchQuery(arg.Condition, "title", "subTitle"))
+		}
+		if arg.Uid != 0 {
+			search.Query(elastic.NewTermQuery("uid", arg.Uid))
+		}
+		searchResult, err := search.
+			Sort("updatedAt", true).
+			Pretty(true).
+			Do(ctx)
+		if err != nil {
+			logger.Error().Caller().AnErr("从es查询文章失败", err).Send()
 			return nil, errors.New("获取文章列表失败")
 		}
+		articles = make([]model.Article, searchResult.TotalHits())
+		for index, item := range searchResult.Each(reflect.TypeOf(model.Article{})) {
+			if a, ok := item.(model.Article); ok {
+				ex, err := cache.QueryCache(ctx, cache.ArticleEx{Aid: a.Id}, func() (interface{}, error) {
+					return model.QueryArticleEx(ctx.Value("tx").(*sqlog.DB), a.Id)
+				})
+				if err != nil {
+					logger.Error().Caller().Err(err).Send()
+					return nil, err
+				}
+				a.ArticleEx = ex.(model.ArticleEx)
+				articles[index] = a
+			} else {
+				logger.Error().Caller().Msg("文章数据转换失败")
+				return nil, errors.New("获取文章列表失败")
+			}
+		}
+		return articles, nil
+	})
+	if err != nil {
+		return nil, err
 	}
-	return articles, nil
+	return articles.([]model.Article), nil
 }
 
 // 喜欢的文章
@@ -225,16 +220,22 @@ func (r articleResolver) LikeArticles(ctx context.Context) ([]model.Article, err
 
 	userId := ctx.Value("userId").(int)
 	// 获取喜欢的文章ID列表
-	list, err := model.LikeList(tx, userId, model.ArticleObj)
+	list, err := cache.QueryCaches(ctx, cache.Like{Uid: userId, Typ: model.ArticleObj}, func() (interface{}, error) {
+		return model.LikeList(tx, userId, model.ArticleObj)
+	})
+
 	if err != nil {
 		logger.Error().Caller().Err(err).Send()
 		return nil, errors.New("获取文章列表失败")
 	}
 	// 获取文章信息
-	articles, err := model.QueryArticlesByIds(tx, list)
-	if err != nil {
-		logger.Error().Caller().Err(err).Send()
-		return nil, errors.New("获取文章列表失败")
+	var articles []model.Article
+	for _, id := range list.([]int) {
+		article, err := r.Article(ctx, IdArgs{Id: id})
+		if err != nil {
+			return nil, err
+		}
+		articles = append(articles, article)
 	}
 	return articles, nil
 }
@@ -255,12 +256,47 @@ func (r articleResolver) CurArticles(ctx context.Context) ([]model.Article, erro
 // 获取文章详细信息
 func (r articleResolver) Article(ctx context.Context, arg IdArgs) (model.Article, error) {
 	logger := ctx.Value("logger").(zerolog.Logger)
+
+	a, err := cache.QueryCache(ctx, cache.Article{Id: arg.Id}, func() (interface{}, error) {
+		result, err := model.ESClient.Search().Index("article").Query(elastic.NewTermQuery("id", arg.Id)).Do(ctx)
+		if err != nil {
+			logger.Error().Caller().Err(err).Send()
+			return nil, errors.New("查询热门文章出错")
+		}
+		return result.Each(reflect.TypeOf(model.Article{}))[0].(model.Article), nil
+	})
+	if err != nil {
+		logger.Error().Caller().AnErr("查询文章详细失败", err).Send()
+		return model.Article{}, errors.New("获取文章内容失败")
+	}
+
+	article := a.(model.Article)
+	ex, err := cache.QueryCache(ctx, cache.ArticleEx{Aid: article.Id}, func() (interface{}, error) {
+		return model.QueryArticleEx(ctx.Value("tx").(*sqlog.DB), article.Id)
+	})
+
+	if err != nil {
+		logger.Error().Caller().Err(err).Send()
+		return model.Article{}, err
+	}
+	article.ArticleEx = ex.(model.ArticleEx)
+
+	return article, nil
+}
+
+// 获取登录人文章详细信息
+func (r articleResolver) MyArticle(ctx context.Context, arg IdArgs) (model.Article, error) {
+	logger := ctx.Value("logger").(zerolog.Logger)
 	tx := ctx.Value("tx").(*sqlog.DB)
 
 	article, err := model.QueryArticle(tx, arg.Id)
 	if err != nil {
 		logger.Error().Caller().AnErr("查询文章详细失败", err).Send()
 		return model.Article{}, errors.New("获取文章内容失败")
+	}
+
+	if article.Uid != ctx.Value("userId").(int) {
+		return model.Article{}, errors.New("权限不足")
 	}
 
 	return article, nil
@@ -337,6 +373,33 @@ func (r articleResolver) NewArticle(ctx context.Context, arg IdArgs) (model.Arti
 	article.User = user
 	article.State = model.Unaudited
 
+	// 删除缓存
+	cache.Delete(cache.UserCount{Uid: uid}.GetCacheKey())
+	// 修改字数计数
+	err = model.UpdateUserCount(tx, uid, 2, true)
+	if err != nil {
+		logger.Error().Caller().Err(err).Send()
+		return model.Article{}, errors.New("文章发布失败")
+	}
+	searchResult, err := model.ESClient.Search().Index("article").Query(elastic.NewTermQuery("id", article.Id)).Do(ctx)
+	if err != nil && !elastic.IsNotFound(err) {
+		logger.Error().Caller().Err(err).Send()
+		return model.Article{}, errors.New("文章发布失败")
+	}
+	var words int
+	if searchResult.TotalHits() == 0 {
+		words = len([]rune(article.Content))
+	} else {
+		words = len([]rune(article.Content)) - len([]rune(searchResult.Each(reflect.TypeOf(model.Article{}))[0].(model.Article).Content))
+	}
+	err = model.UpdateUserCount(tx, uid, 3, true, words)
+	if err != nil {
+		logger.Error().Caller().Err(err).Send()
+		return model.Article{}, errors.New("文章发布失败")
+	}
+
+	// 删除缓存
+	cache.Delete(cache.Article{Id: article.Id}.GetCacheKey())
 	// 存入es
 	_, err = model.ESClient.Index().
 		Index("article").
@@ -350,33 +413,6 @@ func (r articleResolver) NewArticle(ctx context.Context, arg IdArgs) (model.Arti
 
 	return article, nil
 }
-
-// 文章存入es
-//func (r articleResolver) AddToEs(ctx context.Context, id int) error {
-//	logger := ctx.Value("logger").(zerolog.Logger)
-//	tx := ctx.Value("tx").(*sqlog.DB)
-//
-//	uid := ctx.Value("userId").(int)
-//
-//	article, err := model.QueryArticle(tx, id)
-//	if err != nil {
-//		logger.Error().Caller().AnErr("存入Es失败", err).Send()
-//		return errors.New("文章更新ES失败")
-//	}
-//	user, _ := UserResolver.User(ctx, IdArgs{Id: uid})
-//	article.User = user
-//	// 存入es
-//	_, err = model.ESClient.Index().
-//		Index("article").
-//		Id(fmt.Sprintf("%d", article.Id)).
-//		BodyJson(article).
-//		Do(ctx)
-//	if err != nil {
-//		logger.Error().Caller().AnErr("文章存入ES失败", err).Send()
-//		return errors.New("文章更新ES失败")
-//	}
-//	return nil
-//}
 
 // 更新
 func (r articleResolver) UpdateArticle(ctx context.Context, arg struct {
@@ -442,6 +478,8 @@ func (r articleResolver) Delete(ctx context.Context, arg IdArgs) error {
 	logger := ctx.Value("logger").(zerolog.Logger)
 	tx := ctx.Value("tx").(*sqlog.DB)
 
+	uid := ctx.Value("userId").(int)
+
 	// 校验
 	article, err := model.QueryArticle(tx, arg.Id)
 	if err != nil {
@@ -464,6 +502,31 @@ func (r articleResolver) Delete(ctx context.Context, arg IdArgs) error {
 			return errors.New("删除文章失败")
 		}
 	}
+
+	// 删除缓存
+	cache.Delete(cache.UserCount{Uid: uid}.GetCacheKey())
+	// 修改用户计数
+	err = model.UpdateUserCount(tx, uid, 2, false)
+	if err != nil {
+		logger.Error().Caller().Err(err).Send()
+		return errors.New("删除文章失败")
+	}
+	searchResult, err := model.ESClient.Search().Index("article").Query(elastic.NewTermQuery("id", article.Id)).Do(ctx)
+	if err != nil && !elastic.IsNotFound(err) {
+		logger.Error().Caller().Err(err).Send()
+		return errors.New("删除文章失败")
+	}
+	if searchResult.TotalHits() != 0 {
+		words := len([]rune(searchResult.Each(reflect.TypeOf(model.Article{}))[0].(model.Article).Content))
+		err := model.UpdateUserCount(tx, uid, 3, false, words)
+		if err != nil {
+			logger.Error().Caller().Err(err).Send()
+			return errors.New("删除文章失败")
+		}
+	}
+
+	cache.Delete(cache.Article{Id: arg.Id}.GetCacheKey())
+	cache.Delete(cache.ArticleEx{Aid: arg.Id}.GetCacheKey())
 
 	_, err = model.ESClient.Delete().
 		Index("article").
@@ -495,6 +558,8 @@ func (r articleResolver) View(ctx context.Context, args IdArgs) error {
 		return errors.New("增加文章浏览数失败")
 	}
 	if err == redis.Nil || result == "" {
+		cache.Delete(cache.ArticleEx{Aid: args.Id}.GetCacheKey())
+
 		err := model.AddViewOrLikeOrCmt(tx, args.Id, 0, true)
 		if err != nil {
 			logger.Error().Caller().Err(err).Send()
