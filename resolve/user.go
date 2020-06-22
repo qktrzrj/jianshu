@@ -206,7 +206,7 @@ func (u userResolver) SingUp(ctx context.Context, args struct {
 		"username": args.Username,
 		"email":    args.Email,
 		"password": string(password),
-		"avatar":   "http://localhost:8008/image/default",
+		"avatar":   "http://www.shyptr.cn/image/default",
 		"root":     false,
 	})
 	if err != nil {

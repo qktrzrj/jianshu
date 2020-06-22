@@ -11,7 +11,6 @@ import hljs from 'highlight.js'
 import 'highlight.js/styles/atom-one-light.css'
 import {
     ArticleEdge, ArticleState, UpdateArticleMutationVariables,
-    useArticleLazyQuery,
     useDeleteArticleMutation,
     useDraftArticleMutation, useMyArticleLazyQuery,
     useMyArticlesQuery, useNewArticleMutation, useUpdateArticleMutation, useUploadMutation
@@ -230,7 +229,7 @@ export default function Writer() {
                     message.error(res.errors + '')
                 }
                 if (res.data) {
-                    setImageUrl('http://localhost:8008/image/' + res.data.Upload)
+                    setImageUrl('http://www.shyptr.cn/image/' + res.data.Upload)
                 }
             })
             .catch(reason => message.error(reason + ''))
@@ -317,7 +316,7 @@ export default function Writer() {
                         message.error(res.errors + '')
                     }
                     if (res.data) {
-                        resolve('http://localhost:8008/image/' + res.data.Upload)
+                        resolve('http://www.shyptr.cn/image/' + res.data.Upload)
                     }
                 })
                 .catch(reason => {
