@@ -22,6 +22,7 @@ export default function Right(props: right) {
     const [logout] = useLogoutMutation()
 
     const [Len, setLen] = useState(240)
+    const [sval,setSval]=useState("")
 
     const onclick = (param: ClickParam) => {
         NProgress.start()
@@ -67,8 +68,11 @@ export default function Right(props: right) {
                             onFocus={() => setLen(400)}
                             placeholder="搜索"
                             size={"large"}
+                            value={sval}
+                            onChange={e=>setSval(e.target.value)}
                             onSearch={(value) => {
-                                props.Route.history.push('/search', {q: value})
+                                props.Route.history.replace('/search', {q: sval})
+                                setSval("")
                             }}
                             className="search"/>
                 </Col>

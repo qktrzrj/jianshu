@@ -94,6 +94,7 @@ export default function SearchResult(props: RouteComponentProps & { currentUser:
             <Tabs.TabPane tab='文章' key='article'>
                 <ArticleList curId={props.currentUser?.CurrentUser.id}
                              fetchData={fetchData}
+                             locate={{emptyText: <div/>}}
                              loading={loading}
                              hasMore={hasMore}
                              data={list}/>
@@ -107,6 +108,7 @@ export default function SearchResult(props: RouteComponentProps & { currentUser:
                     <List
                         itemLayout="vertical"
                         size="small"
+                        locale={{emptyText: <div/>}}
                         loading={usersLoading}
                         dataSource={userList}
                         renderItem={(item: UserEdge) => {

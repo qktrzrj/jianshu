@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/shyptr/graphql"
+	"github.com/shyptr/jianshu/cache"
 	"github.com/shyptr/jianshu/handler"
 	"github.com/shyptr/jianshu/middleware"
 	"github.com/shyptr/jianshu/model"
@@ -19,7 +20,7 @@ func init() {
 	setting.Init()
 	util.InitLog()
 	model.Init()
-	model.RedisInit()
+	cache.RedisInit()
 	model.ESInit()
 }
 

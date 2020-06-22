@@ -21,6 +21,7 @@ func Register(mux *http.ServeMux) {
 	registerLike(builder)
 	registerFileHandler(builder)
 	registerMsg(builder)
+	registerCache()
 	schema, err := builder.Build()
 	if err != nil {
 		log.Fatalln(err)

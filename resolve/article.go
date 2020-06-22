@@ -10,6 +10,7 @@ import (
 	"github.com/olivere/elastic/v7"
 	"github.com/rs/zerolog"
 	"github.com/shyptr/graphql/schemabuilder"
+	"github.com/shyptr/jianshu/cache"
 	"github.com/shyptr/jianshu/model"
 	"github.com/shyptr/plugins/sqlog"
 	"reflect"
@@ -44,7 +45,7 @@ func (r articleResolver) PutHots(ctx context.Context, articleId int) {
 	score = score * 10 / diff
 
 	if score >= 1/(2*diff) {
-		_, err := model.RedisClient.ZAdd("hots", &redis.Z{
+		_, err := cache.RedisClient.ZAdd("hots", &redis.Z{
 			Score:  score,
 			Member: article.Id,
 		}).Result()
@@ -84,7 +85,7 @@ func (r articleResolver) Hots(ctx context.Context, arg struct {
 	if len(cursor) > 0 {
 		cursor = bytes.TrimPrefix(cursor, []byte(schemabuilder.PREFIX))
 		// 从redis获取对应id索引值
-		index, err = model.RedisClient.ZRank("hots", string(cursor)).Result()
+		index, err = cache.RedisClient.ZRank("hots", string(cursor)).Result()
 		if err != nil {
 			logger.Error().Caller().AnErr("从redis获取索引失败", err).Send()
 			return nil, errors.New("查询热门文章出错")
@@ -96,7 +97,7 @@ func (r articleResolver) Hots(ctx context.Context, arg struct {
 		page ArticlePage
 	)
 	// 总数
-	tot, err := model.RedisClient.ZCard("hots").Result()
+	tot, err := cache.RedisClient.ZCard("hots").Result()
 	if err != nil {
 		logger.Error().Caller().AnErr("从redis获取热门文章数量失败", err).Send()
 		return nil, errors.New("查询热门文章出错")
@@ -110,7 +111,7 @@ func (r articleResolver) Hots(ctx context.Context, arg struct {
 		if arg.After != nil {
 			i = index
 		}
-		ids, err = model.RedisClient.ZRevRange("hots", i, i+*arg.First).Result()
+		ids, err = cache.RedisClient.ZRevRange("hots", i, i+*arg.First).Result()
 		if err != nil {
 			logger.Error().Caller().AnErr("从redis获取热门文章列表失败", err).Send()
 			return nil, errors.New("查询热门文章出错")
@@ -126,7 +127,7 @@ func (r articleResolver) Hots(ctx context.Context, arg struct {
 		if arg.Before != nil {
 			i = index
 		}
-		ids, err = model.RedisClient.ZRevRange("hots", i-*arg.Last, i).Result()
+		ids, err = cache.RedisClient.ZRevRange("hots", i-*arg.Last, i).Result()
 		if err != nil {
 			logger.Error().Caller().AnErr("从redis获取热门文章列表失败", err).Send()
 			return nil, errors.New("查询热门文章出错")
@@ -138,7 +139,7 @@ func (r articleResolver) Hots(ctx context.Context, arg struct {
 			page.HasNextPage = true
 		}
 	} else { // 全部
-		ids, err = model.RedisClient.ZRevRange("hots", 0, tot).Result()
+		ids, err = cache.RedisClient.ZRevRange("hots", 0, tot).Result()
 		if err != nil {
 			logger.Error().Caller().AnErr("从redis获取热门文章列表失败", err).Send()
 			return nil, errors.New("查询热门文章出错")
@@ -452,12 +453,12 @@ func (r articleResolver) Delete(ctx context.Context, arg IdArgs) error {
 	}
 
 	idStr := fmt.Sprintf("%d", arg.Id)
-	result, err := model.RedisClient.ZScore("hots", idStr).Result()
+	result, err := cache.RedisClient.ZScore("hots", idStr).Result()
 	if err != nil && err != redis.Nil {
 		logger.Error().Caller().AnErr("查询redis失败", err).Send()
 	}
 	if result > 0 {
-		_, err := model.RedisClient.ZRem("hots", idStr).Result()
+		_, err := cache.RedisClient.ZRem("hots", idStr).Result()
 		if err != nil {
 			logger.Error().Caller().AnErr("删除redis热门文章失败", err).Send()
 			return errors.New("删除文章失败")
@@ -488,7 +489,7 @@ func (r articleResolver) View(ctx context.Context, args IdArgs) error {
 
 	sessionId := ctx.Value("sessionId").(string)
 	key := fmt.Sprintf("%s %d", sessionId, args.Id)
-	result, err := model.RedisClient.Get(key).Result()
+	result, err := cache.RedisClient.Get(key).Result()
 	if err != nil && err != redis.Nil {
 		logger.Error().Caller().Err(err).Send()
 		return errors.New("增加文章浏览数失败")
@@ -499,7 +500,7 @@ func (r articleResolver) View(ctx context.Context, args IdArgs) error {
 			logger.Error().Caller().Err(err).Send()
 			return errors.New("增加文章浏览数失败")
 		}
-		err = model.RedisClient.Set(key, "1", time.Hour*24).Err()
+		err = cache.RedisClient.Set(key, "1", time.Hour*24).Err()
 		if err != nil {
 			logger.Error().Caller().Err(err).Send()
 			return errors.New("增加文章浏览数失败")

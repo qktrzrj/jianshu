@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/rs/zerolog"
 	"github.com/shyptr/graphql"
+	"github.com/shyptr/jianshu/cache"
 	"github.com/shyptr/jianshu/model"
 	"github.com/shyptr/jianshu/util"
 	"github.com/shyptr/plugins/sqlog"
@@ -30,6 +31,7 @@ func (u userResolver) Users(ctx context.Context, arg struct {
 	tx := ctx.Value("tx").(*sqlog.DB)
 
 	users, err := model.GetUsers(tx, arg.Username)
+
 	if err != nil {
 		logger.Error().Caller().Err(err).Send()
 		return nil, fmt.Errorf("查询用户信息失败")
@@ -43,18 +45,23 @@ func (u userResolver) User(ctx context.Context, args IdArgs) (model.User, error)
 	logger := ctx.Value("logger").(zerolog.Logger)
 	tx := ctx.Value("tx").(*sqlog.DB)
 
-	user, err := model.GetUser(tx, args.Id, "", "")
+	user, err := cache.QueryCache(ctx, cache.User{Id: args.Id}, func() (interface{}, error) {
+		return model.GetUser(tx, args.Id, "", "")
+	})
 	if err != nil {
 		logger.Error().Caller().Err(err).Send()
 		return model.User{}, fmt.Errorf("查询用户信息失败")
 	}
-	count, err := model.GetUserCount(tx, args.Id)
+	count, err := cache.QueryCache(ctx, cache.UserCount{Uid: args.Id}, func() (interface{}, error) {
+		return model.GetUserCount(tx, args.Id)
+	})
 	if err != nil {
 		logger.Error().Caller().Err(err).Send()
 		return model.User{}, fmt.Errorf("查询用户信息失败")
 	}
-	user.Count = count
-	return user, nil
+	res := user.(model.User)
+	res.Count = count.(model.UserCount)
+	return res, nil
 }
 
 // 粉丝列表
@@ -62,13 +69,15 @@ func (u userResolver) Followers(ctx context.Context, arg IdArgs) ([]model.User, 
 	logger := ctx.Value("logger").(zerolog.Logger)
 	tx := ctx.Value("tx").(*sqlog.DB)
 
-	ids, err := model.GetUserFollower(tx, arg.Id)
+	ids, err := cache.QueryCaches(ctx, cache.Follow{Uid: arg.Id}, func() (interface{}, error) {
+		return model.GetUserFollower(tx, arg.Id)
+	})
 	if err != nil {
 		logger.Error().Caller().Err(err).Send()
 		return nil, fmt.Errorf("获取粉丝列表失败")
 	}
 	var users []model.User
-	for _, id := range ids {
+	for _, id := range ids.([]int) {
 		user, err := u.User(ctx, IdArgs{id})
 		if err != nil {
 			return nil, err
@@ -83,13 +92,15 @@ func (u userResolver) Follows(ctx context.Context, arg IdArgs) ([]model.User, er
 	logger := ctx.Value("logger").(zerolog.Logger)
 	tx := ctx.Value("tx").(*sqlog.DB)
 
-	ids, err := model.GetFollowUser(tx, arg.Id)
+	ids, err := cache.QueryCaches(ctx, cache.Follow{Fuid: arg.Id}, func() (interface{}, error) {
+		return model.GetFollowUser(tx, arg.Id)
+	})
 	if err != nil {
 		logger.Error().Caller().Err(err).Send()
 		return nil, fmt.Errorf("获取粉丝列表失败")
 	}
 	var users []model.User
-	for _, id := range ids {
+	for _, id := range ids.([]int) {
 		user, err := u.User(ctx, IdArgs{id})
 		if err != nil {
 			return nil, err
@@ -274,7 +285,23 @@ func (u userResolver) Follow(ctx context.Context, args IdArgs) error {
 	tx := ctx.Value("tx").(*sqlog.DB)
 
 	userId := ctx.Value("userId").(int)
+	// 删除缓存
+	cache.Delete(cache.Follow{Uid: args.Id}.GetCachesKey())
+	cache.Delete(cache.Follow{Fuid: userId}.GetCachesKey())
+	cache.Delete(cache.UserCount{Uid: userId}.GetCacheKey())
+	cache.Delete(cache.UserCount{Uid: args.Id}.GetCacheKey())
+
 	err := model.InsertUserFollow(tx, args.Id, userId)
+	if err != nil {
+		logger.Error().Caller().AnErr("关注失败", err).Send()
+		return errors.New("关注失败")
+	}
+	err = model.UpdateUserCount(tx, userId, 1, true)
+	if err != nil {
+		logger.Error().Caller().AnErr("关注失败", err).Send()
+		return errors.New("关注失败")
+	}
+	err = model.UpdateUserCount(tx, args.Id, 0, true)
 	if err != nil {
 		logger.Error().Caller().AnErr("关注失败", err).Send()
 		return errors.New("关注失败")
@@ -289,7 +316,24 @@ func (u userResolver) CancelFollow(ctx context.Context, args IdArgs) error {
 	tx := ctx.Value("tx").(*sqlog.DB)
 
 	userId := ctx.Value("userId").(int)
+
+	// 删除缓存
+	cache.Delete(cache.Follow{Uid: args.Id}.GetCachesKey())
+	cache.Delete(cache.Follow{Fuid: userId}.GetCachesKey())
+	cache.Delete(cache.UserCount{Uid: userId}.GetCacheKey())
+	cache.Delete(cache.UserCount{Uid: args.Id}.GetCacheKey())
+
 	err := model.DeleteUserFollow(tx, args.Id, userId)
+	if err != nil {
+		logger.Error().Caller().AnErr("取消关注失败", err).Send()
+		return errors.New("取消关注失败")
+	}
+	err = model.UpdateUserCount(tx, userId, 1, false)
+	if err != nil {
+		logger.Error().Caller().AnErr("取消关注失败", err).Send()
+		return errors.New("取消关注失败")
+	}
+	err = model.UpdateUserCount(tx, args.Id, 0, false)
 	if err != nil {
 		logger.Error().Caller().AnErr("取消关注失败", err).Send()
 		return errors.New("取消关注失败")
@@ -311,6 +355,9 @@ func (u userResolver) UpdateUserInfo(ctx context.Context, arg struct {
 	tx := ctx.Value("tx").(*sqlog.DB)
 
 	userId := ctx.Value("userId").(int)
+
+	// 删除缓存
+	cache.Delete(cache.User{Id: userId}.GetCacheKey())
 
 	setMap := make(map[string]interface{})
 	if arg.Email != nil {

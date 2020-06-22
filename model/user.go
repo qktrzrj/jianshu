@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/shyptr/plugins/sqlog"
 	"github.com/shyptr/sqlex"
+	"strconv"
 	"time"
 )
 
@@ -251,4 +252,39 @@ func IsFollow(tx *sqlog.DB, uid, fuid int) (bool, error) {
 		return false, nil
 	}
 	return true, nil
+}
+
+// 修改计数
+func UpdateUserCount(tx *sqlog.DB, uid, typ int, add bool, word ...int) error {
+	count := "+1"
+	if !add {
+		count = "-1"
+	}
+	updateBuilder := PSql.Update("user_count").Set("updated_at", time.Now()).Where(sqlex.Eq{"uid": uid})
+	// 粉丝数
+	if typ == 0 {
+		updateBuilder.DirectSet("fans_num=fans_num" + count)
+	}
+	// 关注数
+	if typ == 1 {
+		updateBuilder.DirectSet("follow_num=fans_num" + count)
+	}
+	// 文章数
+	if typ == 2 {
+		updateBuilder.DirectSet("article_num=article_num" + count)
+	}
+	// 字数
+	if typ == 3 {
+		count = "+"
+		if !add {
+			count = "-"
+		}
+		updateBuilder.DirectSet("words=words" + count + strconv.Itoa(word[0]))
+	}
+	// 赞
+	if typ == 4 {
+		updateBuilder.DirectSet("like_num=like_num" + count)
+	}
+	_, err := updateBuilder.RunWith(tx).Exec()
+	return err
 }
