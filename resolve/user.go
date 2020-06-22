@@ -264,7 +264,7 @@ func (u userResolver) SignIn(ctx context.Context, args struct {
 		Value:   token,
 		Path:    "/",
 		Expires: time.Now().Add(age),
-		Domain:  "localhost",
+		Domain:  "www.shyptr.cn",
 	})
 	return user, nil
 }
@@ -274,7 +274,7 @@ func (u userResolver) Logout(ctx context.Context) {
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:   "me",
 		Path:   "/",
-		Domain: "localhost",
+		Domain: "www.shyptr.cn",
 		MaxAge: -1,
 	})
 }

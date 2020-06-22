@@ -8,7 +8,7 @@ import {InMemoryCache} from "apollo-cache-inmemory";
 
 const client = new ApolloClient({
     link: createUploadLink({
-        uri: 'http://localhost:8008/graphql',
+        uri: 'http://www.shyptr.cn/graphql',
         credentials: 'include',
     }),
     cache: new InMemoryCache(),

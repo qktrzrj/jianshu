@@ -61,7 +61,7 @@ export default function BasicSetting(props: { currentUser: CurrentUserQuery }) {
                     message.error(res.errors + '')
                 }
                 if (res.data) {
-                    onUpload('http://localhost:8008/image/' + res.data.Upload)
+                    onUpload('http://www.shyptr.cn/image/' + res.data.Upload)
                 }
             })
             .catch(reason => message.error(reason + ''))
