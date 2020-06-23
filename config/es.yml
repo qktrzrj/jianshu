@@ -1,0 +1,23 @@
+cluster.name: elasticsearch-cluster
+
+node.name: master
+
+network.host: 0.0.0.0
+
+network.publish_host: es
+
+http.port: 9200
+
+transport.tcp.port: 9300
+
+http.cors.enabled: true
+
+http.cors.allow-origin: "*"
+
+node.master: true
+
+node.data: true
+
+discovery.seed_hosts: ["es:9300"]
+
+cluster.initial_master_nodes: ["master"]

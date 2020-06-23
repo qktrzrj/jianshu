@@ -1,4 +1,4 @@
-version: "1"
+version: "2"
 services:
   web:
     build: .
@@ -9,6 +9,8 @@ services:
       - db:mysql
       - cache:redis
       - es:es
+    volumes:
+      - ./tmp:/tmp
   db:
     image: mysql
     restart: always
@@ -31,5 +33,9 @@ services:
     image: redis
     restart: always
   es:
-    image: elasticsearch
+    image: elasticsearch:7.5.1
     restart: always
+    ports:
+      - 9200:9200
+    volumes:
+      - ./config/es.yml:/usr/share/elasticsearch/config/elasticsearch.yml

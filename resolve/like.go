@@ -52,8 +52,19 @@ func (r likeResolver) Like(ctx context.Context, args objArg) error {
 	}
 
 	if args.ObjType == model.ArticleObj {
-		cache.Delete(cache.ArticleEx{Aid: args.Id}.GetCacheKey())
-		err := model.AddViewOrLikeOrCmt(tx, args.Id, 1, true)
+		article, err := model.QueryArticle(tx, args.Id)
+		if err != nil {
+			logger.Error().Caller().Err(err).Send()
+			return errors.New("点赞失败")
+		}
+		cache.Delete(cache.ArticleEx{Aid: article.Id}.GetCacheKey())
+		cache.Delete(cache.UserCount{Uid: article.Uid}.GetCacheKey())
+		err = model.AddViewOrLikeOrCmt(tx, args.Id, 1, true)
+		if err != nil {
+			logger.Error().Caller().Err(err).Send()
+			return errors.New("点赞失败")
+		}
+		err = model.UpdateUserCount(tx, article.Uid, 4, true)
 		if err != nil {
 			logger.Error().Caller().Err(err).Send()
 			return errors.New("点赞失败")
@@ -77,8 +88,19 @@ func (r likeResolver) UnLike(ctx context.Context, args objArg) error {
 		return errors.New("取消点赞失败")
 	}
 	if args.ObjType == model.ArticleObj {
-		cache.Delete(cache.ArticleEx{Aid: args.Id}.GetCacheKey())
-		err := model.AddViewOrLikeOrCmt(tx, args.Id, 1, false)
+		article, err := model.QueryArticle(tx, args.Id)
+		if err != nil {
+			logger.Error().Caller().Err(err).Send()
+			return errors.New("点赞失败")
+		}
+		cache.Delete(cache.ArticleEx{Aid: article.Id}.GetCacheKey())
+		cache.Delete(cache.UserCount{Uid: article.Uid}.GetCacheKey())
+		err = model.AddViewOrLikeOrCmt(tx, args.Id, 1, false)
+		if err != nil {
+			logger.Error().Caller().Err(err).Send()
+			return errors.New("取消点赞失败")
+		}
+		err = model.UpdateUserCount(tx, article.Uid, 4, false)
 		if err != nil {
 			logger.Error().Caller().Err(err).Send()
 			return errors.New("取消点赞失败")

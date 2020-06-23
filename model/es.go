@@ -25,5 +25,9 @@ func ESInit() {
 		if err != nil {
 			log.Fatalf("连接elasticsearch出错:%s", err)
 		}
+		exist, _ := ESClient.IndexExists("article").Do(context.Background())
+		if !exist {
+			ESClient.CreateIndex("article").Do(context.Background())
+		}
 	})
 }

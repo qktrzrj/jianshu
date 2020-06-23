@@ -64,7 +64,9 @@ export default function BasicSetting(props: { currentUser: CurrentUserQuery }) {
                     onUpload('http://www.shyptr.cn/image/' + res.data.Upload)
                 }
             })
-            .catch(reason => message.error(reason + ''))
+            .catch(reason => {
+                message.error(reason + '')
+            })
     }
 
     const onSave = () => {

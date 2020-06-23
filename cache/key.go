@@ -32,6 +32,7 @@ func QueryCaches(ctx context.Context, key key, noExist func() (interface{}, erro
 		if err != nil {
 			logger.Error().Caller().Err(err).Send()
 		} else {
+			logger.Info().Interface("缓存命中:", key).Send()
 			json.Unmarshal(result, s.Addr().Interface())
 			return s.Interface(), nil
 		}
@@ -57,6 +58,7 @@ func QueryCache(ctx context.Context, key key, noExist func() (interface{}, error
 		if err != nil {
 			logger.Error().Caller().Err(err).Send()
 		} else {
+			logger.Info().Interface("缓存命中:", key).Send()
 			json.Unmarshal(result, s.Addr().Interface())
 			return s.Interface(), nil
 		}

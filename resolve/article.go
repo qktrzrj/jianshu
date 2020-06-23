@@ -382,12 +382,9 @@ func (r articleResolver) NewArticle(ctx context.Context, arg IdArgs) (model.Arti
 		return model.Article{}, errors.New("文章发布失败")
 	}
 	searchResult, err := model.ESClient.Search().Index("article").Query(elastic.NewTermQuery("id", article.Id)).Do(ctx)
-	if err != nil && !elastic.IsNotFound(err) {
-		logger.Error().Caller().Err(err).Send()
-		return model.Article{}, errors.New("文章发布失败")
-	}
 	var words int
-	if searchResult.TotalHits() == 0 {
+	if err != nil || searchResult.TotalHits() == 0 {
+		logger.Error().Caller().Err(err).Send()
 		words = len([]rune(article.Content))
 	} else {
 		words = len([]rune(article.Content)) - len([]rune(searchResult.Each(reflect.TypeOf(model.Article{}))[0].(model.Article).Content))
@@ -516,7 +513,7 @@ func (r articleResolver) Delete(ctx context.Context, arg IdArgs) error {
 		logger.Error().Caller().Err(err).Send()
 		return errors.New("删除文章失败")
 	}
-	if searchResult.TotalHits() != 0 {
+	if elastic.IsNotFound(err) || searchResult.TotalHits() != 0 {
 		words := len([]rune(searchResult.Each(reflect.TypeOf(model.Article{}))[0].(model.Article).Content))
 		err := model.UpdateUserCount(tx, uid, 3, false, words)
 		if err != nil {
@@ -552,12 +549,12 @@ func (r articleResolver) View(ctx context.Context, args IdArgs) error {
 
 	sessionId := ctx.Value("sessionId").(string)
 	key := fmt.Sprintf("%s %d", sessionId, args.Id)
-	result, err := cache.RedisClient.Get(key).Result()
+	result, err := cache.Get(key)
 	if err != nil && err != redis.Nil {
 		logger.Error().Caller().Err(err).Send()
 		return errors.New("增加文章浏览数失败")
 	}
-	if err == redis.Nil || result == "" {
+	if err == redis.Nil || string(result) == "" {
 		cache.Delete(cache.ArticleEx{Aid: args.Id}.GetCacheKey())
 
 		err := model.AddViewOrLikeOrCmt(tx, args.Id, 0, true)
@@ -565,7 +562,7 @@ func (r articleResolver) View(ctx context.Context, args IdArgs) error {
 			logger.Error().Caller().Err(err).Send()
 			return errors.New("增加文章浏览数失败")
 		}
-		err = cache.RedisClient.Set(key, "1", time.Hour*24).Err()
+		err = cache.Set(key, "1", time.Hour*24)
 		if err != nil {
 			logger.Error().Caller().Err(err).Send()
 			return errors.New("增加文章浏览数失败")

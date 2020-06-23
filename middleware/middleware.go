@@ -16,7 +16,7 @@ import (
 
 func CORS() graphql.HandlerFunc {
 	return func(c *graphql.Context) {
-		c.Writer.Header().Add("Access-Control-Allow-Origin", "http://localhost:3000")
+		c.Writer.Header().Add("Access-Control-Allow-Origin", "http://www.shyptr.cn")
 		c.Writer.Header().Add("Access-Control-Allow-Credentials", "true")
 		c.Writer.Header().Add("Access-Control-Allow-Headers", "Content-Type,X-Requested-With")
 		if c.Request.Method == http.MethodOptions {
@@ -99,7 +99,7 @@ func BasicAuth() graphql.HandlerFunc {
 				Path:    "/",
 				Expires: time.Now().Add(time.Hour * 24),
 				MaxAge:  int(time.Now().Add(time.Hour * 24).Unix()),
-				Domain:  "localhost",
+				Domain:  "www.shyptr.cn",
 			})
 			c.Set("sessionId", sessionId)
 		} else {

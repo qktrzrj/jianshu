@@ -33,19 +33,18 @@ func (r msgResolver) ListMsg(ctx context.Context, args struct {
 	tx := ctx.Value("tx").(*sqlog.DB)
 	userId := ctx.Value("userId").(int)
 
-	msgs, err := cache.QueryCaches(ctx, cache.Msg{Uid: userId, Typ: args.Typ}, func() (interface{}, error) {
-		return model.ListMsg(tx, args.Typ, userId)
-	})
+	msgs, err := model.ListMsg(tx, args.Typ, userId)
 	if err != nil {
 		logger.Error().Caller().Err(err).Send()
 		return nil, err
 	}
+	cache.Delete(cache.MsgNum{Uid: userId}.GetCacheKey())
 	err = model.ReadMsg(tx, ctx.Value("userId").(int), args.Typ)
 	if err != nil {
 		logger.Error().Caller().Err(err).Send()
 		return nil, err
 	}
-	return msgs.([]model.Msg), nil
+	return msgs, nil
 }
 
 func (r msgResolver) AddMsg(ctx context.Context, args struct {

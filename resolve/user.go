@@ -390,7 +390,8 @@ func (u userResolver) UpdateUserInfo(ctx context.Context, arg struct {
 		logger.Error().Caller().AnErr("修改用户信息失败", err).Send()
 		return errors.New("修改用户信息失败")
 	}
-
+	// 删除缓存
+	cache.Delete(cache.User{Id: userId}.GetCacheKey())
 	return nil
 }
 
