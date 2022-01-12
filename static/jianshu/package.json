@@ -35,7 +35,7 @@
     "highlight.js": "^10.0.1",
     "less": "^3.11.1",
     "less-loader": "^5.0.0",
-    "markdown-it": "^10.0.0",
+    "markdown-it": "^12.3.2",
     "nprogress": "^0.2.0",
     "qiniu-js": "^2.5.5",
     "react": "^16.13.1",
